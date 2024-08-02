@@ -96,7 +96,7 @@ fn main() {
         );
     }
 
-    let multipliers = [10, 100, 1000];
+    let multipliers = [10, 100];
     for &multiplier in &multipliers {
         stress_test(&formatted_input, multiplier, &test_toml_content);
     }

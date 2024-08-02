@@ -8,7 +8,7 @@ use std::rc::Rc;
 use crate::config::ParserConfig;
 
 use super::{
-    state::{ Mode, Token, TokenizerAction, TokenizerState },
+    state::{ self, Mode, Token, TokenizerAction, TokenizerState },
     util::{
         enclosed_word_parser,
         line_break,
@@ -23,190 +23,184 @@ use super::{
 
 pub type ParserFn = Box<dyn Fn(&TokenizerState) -> Option<TokenizerAction>>;
 
-fn create_word_parser(is_valid_char: Rc<dyn Fn(char) -> bool>) -> ParserFn {
-    Box::new(move |state: &TokenizerState| {
-        word_parser(&state.remaining, &is_valid_char)
-            .ok()
-            .map(|(rest, word)| {
-                TokenizerAction::AddWord(
-                    word.to_string(),
-                    "sound".to_string(),
-                    rest.to_string(),
-                    word.len()
-                )
-            })
-    })
+fn word_parser_fn(
+    state: &TokenizerState,
+    is_valid_char: Rc<dyn Fn(char) -> bool>
+) -> Option<TokenizerAction> {
+    word_parser(&state.remaining, &is_valid_char)
+        .ok()
+        .map(|(rest, word)| {
+            TokenizerAction::AddWord(
+                word.to_string(),
+                "sound".to_string(),
+                rest.to_string(),
+                word.len()
+            )
+        })
 }
-
-fn create_prefixed_word_parser(
+fn prefixed_word_parser_fn(
+    state: &TokenizerState,
     is_valid_char: Rc<dyn Fn(char) -> bool>,
     prefix: String,
     label: String
-) -> ParserFn {
-    Box::new(move |state: &TokenizerState| {
-        prefixed_word_parser(&state.remaining, &prefix, &is_valid_char)
-            .ok()
-            .and_then(|(rest, word)| {
-                if state.can_add_token() {
-                    Some(
-                        TokenizerAction::AddWord(
-                            word.to_string(),
-                            label.clone(),
-                            rest.to_string(),
-                            word.len() + prefix.len()
-                        )
+) -> Option<TokenizerAction> {
+    prefixed_word_parser(&state.remaining, &prefix, &is_valid_char)
+        .ok()
+        .and_then(|(rest, word)| {
+            if state.can_add_token() {
+                Some(
+                    TokenizerAction::AddWord(
+                        word.to_string(),
+                        label.clone(),
+                        rest.to_string(),
+                        word.len() + prefix.len()
                     )
-                } else {
-                    None
-                }
-            })
-    })
+                )
+            } else {
+                None
+            }
+        })
 }
 
-fn create_bracketed_words_parser(
+fn run_bracketed_words_parser(
+    state: &TokenizerState,
     is_valid_char: Rc<dyn Fn(char) -> bool>,
     open: String,
     close: String,
     label: String
-) -> ParserFn {
-    Box::new(move |state: &TokenizerState| {
-        prefixed_word_parser(&state.remaining, &open, &is_valid_char)
-            .ok()
-            .and_then(|(rest, word)| {
-                if bracket_is_closed(rest, &close, &is_valid_char) {
-                    create_bracketed_token(
-                        state,
-                        word,
-                        format!("{}_open", &label),
-                        rest,
-                        open.len()
-                    )
-                } else {
-                    None
-                }
-            })
-            .or_else(|| {
-                suffixed_word_parser(&state.remaining, &close, &is_valid_char)
-                    .ok()
-                    .and_then(|(rest, word)| {
-                        if bracket_was_open(state, &label) {
-                            create_bracketed_token(
-                                state,
-                                word,
-                                format!("{}_close", &label),
-                                rest,
-                                close.len()
-                            )
-                        } else {
-                            None
-                        }
-                    })
-            })
-            .or_else(|| {
-                enclosed_word_parser(&state.remaining, &open, &close, &is_valid_char)
-                    .ok()
-                    .and_then(|(rest, word)|
+) -> Option<TokenizerAction> {
+    prefixed_word_parser(&state.remaining, &open, &is_valid_char)
+        .ok()
+        .and_then(|(rest, word)| {
+            if bracket_is_closed(rest, &close, &is_valid_char) {
+                create_bracketed_token(state, word, format!("{}_open", &label), rest, open.len())
+            } else {
+                None
+            }
+        })
+        .or_else(|| {
+            suffixed_word_parser(&state.remaining, &close, &is_valid_char)
+                .ok()
+                .and_then(|(rest, word)| {
+                    if bracket_was_open(state, &label) {
                         create_bracketed_token(
                             state,
                             word,
-                            label.clone(),
+                            format!("{}_close", &label),
                             rest,
-                            open.len() + close.len()
+                            close.len()
                         )
+                    } else {
+                        None
+                    }
+                })
+        })
+        .or_else(|| {
+            enclosed_word_parser(&state.remaining, &open, &close, &is_valid_char)
+                .ok()
+                .and_then(|(rest, word)|
+                    create_bracketed_token(
+                        state,
+                        word,
+                        label.clone(),
+                        rest,
+                        open.len() + close.len()
                     )
-            })
-    })
+                )
+        })
 }
 
-fn create_sequence_parser(seq: String, seq_type: String) -> ParserFn {
-    Box::new(move |state: &TokenizerState| {
-        parse_sqeuence(&seq)(&state.remaining)
-            .ok()
-            .and_then(|(rest, _)| {
-                if state.can_add_token() {
-                    Some(
-                        TokenizerAction::AddTag(
-                            seq.to_string(),
-                            seq_type.to_string(),
-                            rest.to_string(),
-                            seq.len()
-                        )
+fn run_sequence_parser(
+    state: &TokenizerState,
+    seq: String,
+    seq_type: String
+) -> Option<TokenizerAction> {
+    parse_sqeuence(&seq)(&state.remaining)
+        .ok()
+        .and_then(|(rest, _)| {
+            if state.can_add_token() {
+                Some(
+                    TokenizerAction::AddTag(
+                        seq.to_string(),
+                        seq_type.to_string(),
+                        rest.to_string(),
+                        seq.len()
                     )
-                } else {
-                    None
-                }
-            })
-    })
+                )
+            } else {
+                None
+            }
+        })
 }
 
 fn is_char_in_range(code: u32, range: &(u32, u32)) -> bool {
     code >= range.0 && code <= range.1
 }
 
-pub fn create_parsers(config: Rc<ParserConfig>, mode: &Mode) -> Vec<ParserFn> {
+pub fn create_parsers(config: Rc<ParserConfig>, mode: &Mode) -> ParserFn {
     let config_ref = config.clone();
-    let is_valid_char = Rc::new(move |c: char| {
-        let range = (
-            *config_ref.main.char_range.first().unwrap(),
-            *config_ref.main.char_range.last().unwrap(),
-        );
+    let is_valid_char: Rc<dyn Fn(char) -> bool> = Rc::new(move |c: char| {
         let code = c as u32;
-        is_char_in_range(code, &range) || config_ref.main.additional_chars.contains(&code)
+        let range = &config_ref.main.char_range;
+        let first = range.first().unwrap();
+        let last = range.last().unwrap();
+        is_char_in_range(code, &(*first, *last)) || config_ref.main.additional_chars.contains(&code)
     });
-    let word_parser = create_word_parser(is_valid_char.clone());
-
-    let mut prefix_parsers: Vec<ParserFn> = vec![];
-
-    for prefix_def in &config.prefix {
-        prefix_parsers.push(
-            create_prefixed_word_parser(
-                is_valid_char.clone(),
-                prefix_def.symbol.clone(),
-                prefix_def.label.clone()
-            )
-        );
-    }
-
-    let mut bracketed_parsers: Vec<ParserFn> = vec![];
-
-    for bracket_def in &config.brackets {
-        bracketed_parsers.push(
-            create_bracketed_words_parser(
-                is_valid_char.clone(),
-                bracket_def.open.clone(),
-                bracket_def.close.clone(),
-                bracket_def.label.clone()
-            )
-        );
-    }
-
-    let mut sequence_parsers: Vec<ParserFn> = vec![];
-
-    for seq_def in &config.sequence {
-        sequence_parsers.push(
-            create_sequence_parser(seq_def.symbol.clone(), seq_def.label.clone())
-        );
-    }
-
-    let mut parsers: Vec<ParserFn> = vec![Box::new(parse_spaces)];
 
     match mode {
         Mode::SinglePage => {
-            parsers.push(Box::new(parse_line_break));
-            parsers.extend(prefix_parsers);
-            parsers.extend(bracketed_parsers);
-            parsers.extend(sequence_parsers);
-            parsers.push(word_parser);
-            parsers
+            let config_ref = config.clone();
+            Box::new(move |state| {
+                if let Some(action) = parse_spaces(state) {
+                    return Some(action);
+                }
+                if let Some(action) = parse_line_break(state) {
+                    return Some(action);
+                }
+                for prefix_def in &config_ref.prefix {
+                    let result = prefixed_word_parser_fn(
+                        state,
+                        is_valid_char.clone(),
+                        prefix_def.symbol.clone(),
+                        prefix_def.label.clone()
+                    );
+                    if result.is_some() {
+                        return result;
+                    }
+                }
+
+                for bracket_def in &config_ref.brackets {
+                    let result = run_bracketed_words_parser(
+                        state,
+                        is_valid_char.clone(),
+                        bracket_def.open.clone(),
+                        bracket_def.close.clone(),
+                        bracket_def.label.clone()
+                    );
+                    if result.is_some() {
+                        return result;
+                    }
+                }
+
+                for seq_def in &config_ref.sequence {
+                    let result = run_sequence_parser(
+                        state,
+                        seq_def.symbol.clone(),
+                        seq_def.label.clone()
+                    );
+                    if result.is_some() {
+                        return result;
+                    }
+                }
+
+                if let Some(action) = word_parser_fn(state, is_valid_char.clone()) {
+                    return Some(action);
+                }
+
+                None
+            })
         }
-        Mode::Passage => {
-            parsers.push(Box::new(parse_passage_line_break));
-            parsers.extend(prefix_parsers);
-            parsers.extend(bracketed_parsers);
-            parsers.extend(sequence_parsers);
-            parsers.push(word_parser);
-            parsers
-        }
+        Mode::Passage => { Box::new(move |state| { None }) }
         Mode::MultiplePages => unimplemented!(),
     }
 }

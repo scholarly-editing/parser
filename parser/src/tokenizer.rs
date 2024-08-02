@@ -14,10 +14,10 @@ pub fn get_tokens(
     mode: Mode
 ) -> Result<Vec<Token>, Vec<TokenizerError>> {
     let mut state = TokenizerState::new(input);
-    let parsers = create_parsers(Rc::new(config), &mode);
+    let parser = create_parsers(Rc::new(config), &mode);
 
     while state.parsing_not_finished() {
-        if let Some(action) = parsers.iter().find_map(|parser| parser(&state)) {
+        if let Some(action) = parser(&state) {
             action.apply(&mut state);
         } else {
             state.handle_error();
