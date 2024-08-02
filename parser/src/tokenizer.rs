@@ -4,9 +4,9 @@ pub mod util;
 
 use self::{ parsers::Parser, state::{ Token, TokenizerError, TokenizerState } };
 
-pub fn get_tokens<'a, 'b, 'c>(
+pub fn get_tokens<'a>(
     input: &'a str,
-    parser: &'a Parser<'b, 'c>
+    parser: &'a Parser<'a>
 ) -> Result<Vec<Token<'a>>, Vec<TokenizerError<'a>>> {
     let mut state = TokenizerState::new(input);
 

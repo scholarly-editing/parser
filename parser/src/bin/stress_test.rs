@@ -92,26 +92,27 @@ fn main() {
     // Add a space at the end to match the format in the parse_with_errors call
     let formatted_input = format!("{} ", processed_input);
 
-    fn stress_test(input: &str, multiplier: usize, toml_content: &str) {
-        let repeated_input = input.repeat(multiplier);
-        let start = Instant::now();
-        let config = ParserConfig::from_str(toml_content).unwrap();
-        let mode = Mode::default();
-        let parser = Parser::new(&config, &mode);
-        let tokens = get_tokens(&repeated_input, &parser);
-        let duration = start.elapsed();
-        println!(
-            "Multiplier: {}, Duration: {:.2?} seconds, Tokens: {}",
-            multiplier,
-            duration,
-            tokens.unwrap().len()
-        );
-    }
+    let multipliers = [10, 100, 1000, 5000, 10000, 50000, 100000];
+    let config: ParserConfig = ParserConfig::from_str(test_toml_content).unwrap();
+    let mode = Mode::default();
+    let parser = Parser::new(&config, &mode);
 
-    let multipliers = [10, 100, 1000, 5000, 10000];
     for &multiplier in &multipliers {
-        stress_test(&formatted_input, multiplier, &test_toml_content);
+        stress_test(&formatted_input, multiplier, &parser);
     }
+}
+
+fn stress_test<'a>(input: &'a str, multiplier: usize, parser: &'a Parser<'a>) {
+    let repeated_input = input.repeat(multiplier);
+    let start = Instant::now();
+    let tokens = get_tokens(&repeated_input, &parser);
+    let duration = start.elapsed();
+    println!(
+        "Multiplier: {}, Duration: {:.2?} seconds, Tokens: {}",
+        multiplier,
+        duration,
+        tokens.unwrap().len()
+    );
 }
 
 // Multiplier: 10, Duration: 251.23ms seconds, Tokens: 1220
@@ -122,3 +123,8 @@ fn main() {
 // Multiplier: 1000, Duration: 64.62s seconds, Tokens: 122000
 // Multiplier: 5000, Duration: 2127.61s seconds, Tokens: 610000
 // Multiplier: 10000, Duration: 8202.65s seconds, Tokens: 1220000
+// ---
+// Multiplier: 10, Duration: 15.10ms seconds, Tokens: 1220
+// Multiplier: 100, Duration: 82.02ms seconds, Tokens: 12200
+// Multiplier: 1000, Duration: 687.42ms seconds, Tokens: 122000
+// Multiplier: 5000, Duration: 3.45s seconds, Tokens: 610000

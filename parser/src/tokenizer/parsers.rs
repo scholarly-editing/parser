@@ -107,14 +107,14 @@ fn run_sequence_parser<'a>(
             }
         })
 }
-pub struct Parser<'b, 'c> {
-    config: &'b ParserConfig,
-    mode: &'c Mode,
+pub struct Parser<'a> {
+    config: &'a ParserConfig,
+    mode: &'a Mode,
     chars: Chars,
 }
 
-impl<'b, 'c> Parser<'b, 'c> {
-    pub fn new(config: &'b ParserConfig, mode: &'c Mode) -> Self {
+impl<'a> Parser<'a> {
+    pub fn new(config: &'a ParserConfig, mode: &'a Mode) -> Self {
         let range = &config.main.char_range;
         let first = *range.first().unwrap();
         let last = *range.last().unwrap();
@@ -123,7 +123,7 @@ impl<'b, 'c> Parser<'b, 'c> {
         Parser { config, mode, chars }
     }
 
-    pub fn run<'a>(&'a self, state: &TokenizerState<'a>) -> Option<TokenizerAction<'a>> {
+    pub fn run(&'a self, state: &TokenizerState<'a>) -> Option<TokenizerAction<'a>> {
         match self.mode {
             Mode::SinglePage => self.run_single_page(state),
             Mode::Passage => None,
@@ -131,7 +131,7 @@ impl<'b, 'c> Parser<'b, 'c> {
         }
     }
 
-    fn run_single_page<'a>(&'a self, state: &TokenizerState<'a>) -> Option<TokenizerAction<'a>> {
+    fn run_single_page(&'a self, state: &TokenizerState<'a>) -> Option<TokenizerAction<'a>> {
         parse_spaces(state)
             .or_else(|| parse_line_break(state))
             .or_else(|| self.parse_prefixed_word(state))
@@ -140,10 +140,7 @@ impl<'b, 'c> Parser<'b, 'c> {
             .or_else(|| word_parser_fn(state, &self.chars))
     }
 
-    fn parse_prefixed_word<'a>(
-        &'a self,
-        state: &TokenizerState<'a>
-    ) -> Option<TokenizerAction<'a>> {
+    fn parse_prefixed_word(&'a self, state: &TokenizerState<'a>) -> Option<TokenizerAction<'a>> {
         self.config.prefix
             .iter()
             .find_map(|prefix_def| {
@@ -151,10 +148,7 @@ impl<'b, 'c> Parser<'b, 'c> {
             })
     }
 
-    fn parse_bracketed_words<'a>(
-        &'a self,
-        state: &TokenizerState<'a>
-    ) -> Option<TokenizerAction<'a>> {
+    fn parse_bracketed_words(&'a self, state: &TokenizerState<'a>) -> Option<TokenizerAction<'a>> {
         self.config.brackets
             .iter()
             .find_map(|bracket_def| {
@@ -170,7 +164,7 @@ impl<'b, 'c> Parser<'b, 'c> {
             })
     }
 
-    fn parse_sequence<'a>(&'a self, state: &TokenizerState<'a>) -> Option<TokenizerAction<'a>> {
+    fn parse_sequence(&'a self, state: &TokenizerState<'a>) -> Option<TokenizerAction<'a>> {
         self.config.sequence
             .iter()
             .find_map(|seq_def| { run_sequence_parser(state, &seq_def.symbol, &seq_def.label) })
