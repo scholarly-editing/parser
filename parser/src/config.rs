@@ -28,6 +28,8 @@ pub struct BracketsConfig {
     pub open: String,
     pub close: String,
     pub label: String,
+    pub open_label: String,
+    pub close_label: String,
 }
 
 #[derive(Deserialize)]

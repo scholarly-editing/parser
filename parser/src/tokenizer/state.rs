@@ -1,39 +1,39 @@
 // make named tuples
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
-pub enum Token {
-    Word(String, String, usize, usize, usize, usize), // word, state, page number, line number, token order, position
-    Tag(String, String, usize, usize, usize, usize), // tag, label, page number, line number, token order, position
-    PageBreak(String, usize, usize), // page represntation, page number, position
-    Block(String, usize, usize), // block name, page number, position
-    WordInBlock(String, String, usize, usize, usize, usize), // word, state, block name, page number, line number, token order
+pub enum Token<'a> {
+    Word(&'a str, &'a str, usize, usize, usize, usize), // word, state, page number, line number, token order, position
+    Tag(&'a str, &'a str, usize, usize, usize, usize), // tag, label, page number, line number, token order, position
+    PageBreak(&'a str, usize, usize), // page represntation, page number, position
+    Block(&'a str, usize, usize), // block name, page number, position
+    WordInBlock(&'a str, &'a str, &'a str, usize, usize, usize), // word, state, block name, page number, line number, token order
 }
 
-#[derive(Debug)]
-pub struct TokenizerError {
-    pub token: String,
+#[derive(Debug, Clone)]
+pub struct TokenizerError<'a> {
+    pub token: &'a str,
     pub line: usize,
     pub page: usize,
     pub order_in_line: usize,
-    pub page_repr: String,
+    pub page_repr: &'a str,
     pub position: usize,
-    pub message: String,
+    pub message: &'a str,
 }
 
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum TokenizerAction {
-    AddPageBreak(String),
-    AddLineBreak(String, usize),
-    AddPassageLineBreak(String, usize),
-    AddSpace(String, usize),
-    AddWord(String, String, String, usize),
-    AddTag(String, String, String, usize),
+pub enum TokenizerAction<'a> {
+    AddPageBreak(&'a str),
+    AddLineBreak(&'a str, usize),
+    AddPassageLineBreak(&'a str, usize),
+    AddSpace(&'a str, usize),
+    AddWord(&'a str, &'a str, &'a str, usize),
+    AddTag(&'a str, &'a str, &'a str, usize),
 }
 
-impl TokenizerAction {
-    pub fn apply(self, state: &mut TokenizerState) {
+impl<'a> TokenizerAction<'a> {
+    pub fn apply(self, state: &mut TokenizerState<'a>) {
         match self {
             TokenizerAction::AddPageBreak(_) => unimplemented!(),
             TokenizerAction::AddLineBreak(rest, position) => {
@@ -66,36 +66,36 @@ impl TokenizerAction {
 }
 
 #[derive(Debug)]
-pub struct BlockState {
-    name: String,
+pub struct BlockState<'a> {
+    name: &'a str,
     token_order_in_line: usize,
     line_number: usize,
 }
 
 #[derive(Debug)]
-pub struct TokenizerState {
-    pub tokens: Vec<Token>,
-    pub errors: Vec<TokenizerError>,
-    pub remaining: String,
+pub struct TokenizerState<'a> {
+    pub tokens: Vec<Token<'a>>,
+    pub errors: Vec<TokenizerError<'a>>,
+    pub remaining: &'a str,
     token_order_in_line: usize,
     line_number: usize,
     page_number: usize,
-    current_page_repr: String,
+    current_page_repr: &'a str,
     curr_position: usize,
     last_is_space: bool,
-    current_block: Option<BlockState>,
+    current_block: Option<BlockState<'a>>,
 }
 
-impl TokenizerState {
-    pub fn new(input: &str) -> Self {
+impl<'a> TokenizerState<'a> {
+    pub fn new(input: &'a str) -> Self {
         Self {
             tokens: Vec::with_capacity(input.len() / 5),
             errors: Vec::with_capacity(input.len() / 100),
-            remaining: input.to_string(),
+            remaining: input,
             token_order_in_line: 0,
             line_number: 0,
             page_number: 0,
-            current_page_repr: String::new(),
+            current_page_repr: "",
             curr_position: 0,
             last_is_space: true, // assume that an input starts with a psuedo space
             current_block: None,
@@ -110,11 +110,11 @@ impl TokenizerState {
         self.last_is_space
     }
 
-    pub fn add_page_break(&mut self, repr: String) {
+    pub fn add_page_break(&mut self, repr: &'a str) {
         self.page_number += 1;
         self.token_order_in_line = 0;
         self.line_number = 0;
-        self.current_page_repr = repr.clone();
+        self.current_page_repr = repr;
         self.tokens.push(Token::PageBreak(repr, self.page_number, self.curr_position));
         self.last_is_space = true;
     }
@@ -129,7 +129,7 @@ impl TokenizerState {
         self.last_is_space = true;
     }
 
-    pub fn add_word(&mut self, word: String, word_state: String) {
+    pub fn add_word(&mut self, word: &'a str, word_state: &'a str) {
         self.tokens.push(
             Token::Word(
                 word,
@@ -144,7 +144,7 @@ impl TokenizerState {
         self.token_order_in_line += 1;
     }
 
-    pub fn add_tag(&mut self, tag: String, label: String) {
+    pub fn add_tag(&mut self, tag: &'a str, label: &'a str) {
         self.tokens.push(
             Token::Tag(
                 tag,
@@ -158,8 +158,8 @@ impl TokenizerState {
         self.last_is_space = false;
     }
 
-    pub fn update_remaining(&mut self, rest: &str) {
-        self.remaining = rest.to_string();
+    pub fn update_remaining(&mut self, rest: &'a str) {
+        self.remaining = rest;
     }
 
     pub fn update_position(&mut self, position: usize) {
@@ -167,22 +167,19 @@ impl TokenizerState {
     }
 
     pub fn handle_error(&mut self) {
-        let error_token = self.remaining.split_whitespace().next().unwrap_or(&self.remaining);
-        let remaining_after_error = self.remaining
-            .replacen(error_token, "", 1)
-            .trim_start()
-            .to_string();
+        let error_token = self.remaining.split_whitespace().next().unwrap_or(self.remaining);
+        let remaining_after_error = &self.remaining[error_token.len()..].trim_start();
         let err = TokenizerError {
-            token: error_token.to_string(),
+            token: error_token,
             line: self.line_number,
             page: self.page_number,
             order_in_line: self.token_order_in_line,
-            page_repr: self.current_page_repr.clone(),
+            page_repr: self.current_page_repr,
             position: self.curr_position,
-            message: "".to_string(),
+            message: "",
         };
         self.update_position(error_token.len());
-        self.update_remaining(&remaining_after_error);
+        self.update_remaining(remaining_after_error);
         self.errors.push(err);
     }
 }

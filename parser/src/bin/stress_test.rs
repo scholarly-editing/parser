@@ -1,4 +1,4 @@
-use parser::{ config::ParserConfig, tokenizer::{ get_tokens, state::Mode } };
+use parser::{ config::ParserConfig, tokenizer::{ get_tokens, parsers::Parser, state::Mode } };
 use std::time::Instant;
 fn main() {
     let input =
@@ -44,26 +44,36 @@ fn main() {
             open = "("
             close = ")"
             label = "title"
+            open_label = "title_open"
+            close_label = "title_close"
 
             [[brackets]]
             open = "["
             close = "]"
             label = "superfluous"
+            open_label = "superfluous_open"
+            close_label = "superfluous_close"
 
             [[brackets]]
             open = "[["
             close = "]]"
             label = "cross-out"
+            open_label = "cross-out_open"
+            close_label = "cross-out_close"
 
             [[brackets]]
             open = "{"
             close = "}"
             label = "suppletion"
+            open_label = "suppletion_open"
+            close_label = "suppletion_close"
 
             [[brackets]]
             open = "<"
             close = ">"
             label = "added"
+            open_label = "added_open"
+            close_label = "added_close"
 
             [[sequence]]
             symbol = "***"
@@ -86,7 +96,9 @@ fn main() {
         let repeated_input = input.repeat(multiplier);
         let start = Instant::now();
         let config = ParserConfig::from_str(toml_content).unwrap();
-        let tokens = get_tokens(&repeated_input, config, Mode::default());
+        let mode = Mode::default();
+        let parser = Parser::new(&config, &mode);
+        let tokens = get_tokens(&repeated_input, &parser);
         let duration = start.elapsed();
         println!(
             "Multiplier: {}, Duration: {:.2?} seconds, Tokens: {}",
@@ -96,7 +108,7 @@ fn main() {
         );
     }
 
-    let multipliers = [10, 100, 1000, 5000];
+    let multipliers = [10, 100, 1000, 5000, 10000];
     for &multiplier in &multipliers {
         stress_test(&formatted_input, multiplier, &test_toml_content);
     }
