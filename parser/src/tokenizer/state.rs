@@ -89,8 +89,8 @@ pub struct TokenizerState {
 impl TokenizerState {
     pub fn new(input: &str) -> Self {
         Self {
-            tokens: Vec::new(),
-            errors: Vec::new(),
+            tokens: Vec::with_capacity(input.len() / 5),
+            errors: Vec::with_capacity(input.len() / 100),
             remaining: input.to_string(),
             token_order_in_line: 0,
             line_number: 0,
