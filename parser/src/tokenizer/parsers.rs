@@ -3,7 +3,6 @@ use nom::{
     character::complete::space1,
     sequence::terminated,
 };
-use std::rc::Rc;
 
 use crate::config::ParserConfig;
 
@@ -11,22 +10,21 @@ use super::{
     state::{ Mode, Token, TokenizerAction, TokenizerState },
     util::{
         enclosed_word_parser,
+        is_valid_char,
         line_break,
         parse_sqeuence,
         prefixed_word_parser,
         spaces,
         suffixed_word_parser,
         word_parser,
+        Chars,
     },
 };
 
 pub type ParserFn = Box<dyn Fn(&TokenizerState) -> Option<TokenizerAction>>;
 
-fn word_parser_fn(
-    state: &TokenizerState,
-    is_valid_char: Rc<dyn Fn(char) -> bool>
-) -> Option<TokenizerAction> {
-    word_parser(&state.remaining, &is_valid_char)
+fn word_parser_fn(state: &TokenizerState, chars: &Chars) -> Option<TokenizerAction> {
+    word_parser(&state.remaining, chars)
         .ok()
         .and_then(|(rest, word)| {
             if state.can_add_token() {
@@ -45,11 +43,11 @@ fn word_parser_fn(
 }
 fn prefixed_word_parser_fn(
     state: &TokenizerState,
-    is_valid_char: Rc<dyn Fn(char) -> bool>,
+    chars: &Chars,
     prefix: String,
     label: String
 ) -> Option<TokenizerAction> {
-    prefixed_word_parser(&state.remaining, &prefix, &is_valid_char)
+    prefixed_word_parser(&state.remaining, &prefix, chars)
         .ok()
         .and_then(|(rest, word)| {
             if state.can_add_token() {
@@ -69,22 +67,22 @@ fn prefixed_word_parser_fn(
 
 fn run_bracketed_words_parser(
     state: &TokenizerState,
-    is_valid_char: Rc<dyn Fn(char) -> bool>,
+    chars: &Chars,
     open: String,
     close: String,
     label: String
 ) -> Option<TokenizerAction> {
-    prefixed_word_parser(&state.remaining, &open, &is_valid_char)
+    prefixed_word_parser(&state.remaining, &open, chars)
         .ok()
         .and_then(|(rest, word)| {
-            if bracket_is_closed(rest, &close, &is_valid_char) {
+            if bracket_is_closed(rest, &close, chars) {
                 create_bracketed_token(state, word, format!("{}_open", &label), rest, open.len())
             } else {
                 None
             }
         })
         .or_else(|| {
-            suffixed_word_parser(&state.remaining, &close, &is_valid_char)
+            suffixed_word_parser(&state.remaining, &close, chars)
                 .ok()
                 .and_then(|(rest, word)| {
                     if bracket_was_open(state, &label) {
@@ -101,7 +99,7 @@ fn run_bracketed_words_parser(
                 })
         })
         .or_else(|| {
-            enclosed_word_parser(&state.remaining, &open, &close, &is_valid_char)
+            enclosed_word_parser(&state.remaining, &open, &close, chars)
                 .ok()
                 .and_then(|(rest, word)|
                     create_bracketed_token(
@@ -138,23 +136,14 @@ fn run_sequence_parser(
         })
 }
 
-fn is_char_in_range(code: u32, range: &(u32, u32)) -> bool {
-    code >= range.0 && code <= range.1
-}
-
-pub fn create_parser(config: Rc<ParserConfig>, mode: &Mode) -> ParserFn {
-    let config_ref = config.clone();
-    let is_valid_char: Rc<dyn Fn(char) -> bool> = Rc::new(move |c: char| {
-        let code = c as u32;
-        let range = &config_ref.main.char_range;
-        let first = range.first().unwrap();
-        let last = range.last().unwrap();
-        is_char_in_range(code, &(*first, *last)) || config_ref.main.additional_chars.contains(&code)
-    });
+pub fn create_parser(config: ParserConfig, mode: &Mode) -> ParserFn {
+    let range = &config.main.char_range;
+    let first = range.first().unwrap();
+    let last = range.last().unwrap();
+    let chars = ((*first, *last), config.main.additional_chars.clone());
 
     match mode {
         Mode::SinglePage => {
-            let config_ref = config.clone();
             Box::new(move |state| {
                 if let Some(action) = parse_spaces(state) {
                     return Some(action);
@@ -162,10 +151,10 @@ pub fn create_parser(config: Rc<ParserConfig>, mode: &Mode) -> ParserFn {
                 if let Some(action) = parse_line_break(state) {
                     return Some(action);
                 }
-                for prefix_def in &config_ref.prefix {
+                for prefix_def in &config.prefix {
                     let result = prefixed_word_parser_fn(
                         state,
-                        is_valid_char.clone(),
+                        &chars,
                         prefix_def.symbol.clone(),
                         prefix_def.label.clone()
                     );
@@ -174,10 +163,10 @@ pub fn create_parser(config: Rc<ParserConfig>, mode: &Mode) -> ParserFn {
                     }
                 }
 
-                for bracket_def in &config_ref.brackets {
+                for bracket_def in &config.brackets {
                     let result = run_bracketed_words_parser(
                         state,
-                        is_valid_char.clone(),
+                        &chars,
                         bracket_def.open.clone(),
                         bracket_def.close.clone(),
                         bracket_def.label.clone()
@@ -187,7 +176,7 @@ pub fn create_parser(config: Rc<ParserConfig>, mode: &Mode) -> ParserFn {
                     }
                 }
 
-                for seq_def in &config_ref.sequence {
+                for seq_def in &config.sequence {
                     let result = run_sequence_parser(
                         state,
                         seq_def.symbol.clone(),
@@ -198,7 +187,7 @@ pub fn create_parser(config: Rc<ParserConfig>, mode: &Mode) -> ParserFn {
                     }
                 }
 
-                if let Some(action) = word_parser_fn(state, is_valid_char.clone()) {
+                if let Some(action) = word_parser_fn(state, &chars) {
                     return Some(action);
                 }
 
@@ -242,14 +231,11 @@ pub fn parse_spaces(state: &TokenizerState) -> Option<TokenizerAction> {
         .map(|(rest, repr)| { TokenizerAction::AddSpace(rest.to_string(), repr.len()) })
 }
 
-fn bracket_is_closed<'a>(
-    input: &'a str,
-    close: &'a str,
-    is_valid_char: &Rc<dyn Fn(char) -> bool>
-) -> bool {
+fn bracket_is_closed<'a>(input: &'a str, close: &'a str, chars: &Chars) -> bool {
     let result = terminated::<&'a str, &'a str, &'a str, nom::error::Error<&'a str>, _, _>(
         take_while1(
-            |c: char| c != close.chars().next().unwrap() && (c.is_whitespace() || is_valid_char(c))
+            |c: char|
+                c != close.chars().next().unwrap() && (c.is_whitespace() || is_valid_char(c, chars))
         ),
         terminated::<&'a str, &'a str, &'a str, nom::error::Error<&'a str>, _, _>(
             tag(close),
