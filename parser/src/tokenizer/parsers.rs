@@ -8,11 +8,10 @@ use std::rc::Rc;
 use crate::config::ParserConfig;
 
 use super::{
-    state::{ self, Mode, Token, TokenizerAction, TokenizerState },
+    state::{ Mode, Token, TokenizerAction, TokenizerState },
     util::{
         enclosed_word_parser,
         line_break,
-        page_break,
         parse_sqeuence,
         prefixed_word_parser,
         spaces,
@@ -29,13 +28,19 @@ fn word_parser_fn(
 ) -> Option<TokenizerAction> {
     word_parser(&state.remaining, &is_valid_char)
         .ok()
-        .map(|(rest, word)| {
-            TokenizerAction::AddWord(
-                word.to_string(),
-                "sound".to_string(),
-                rest.to_string(),
-                word.len()
-            )
+        .and_then(|(rest, word)| {
+            if state.can_add_token() {
+                Some(
+                    TokenizerAction::AddWord(
+                        word.to_string(),
+                        "sound".to_string(),
+                        rest.to_string(),
+                        word.len()
+                    )
+                )
+            } else {
+                None
+            }
         })
 }
 fn prefixed_word_parser_fn(
@@ -137,7 +142,7 @@ fn is_char_in_range(code: u32, range: &(u32, u32)) -> bool {
     code >= range.0 && code <= range.1
 }
 
-pub fn create_parsers(config: Rc<ParserConfig>, mode: &Mode) -> ParserFn {
+pub fn create_parser(config: Rc<ParserConfig>, mode: &Mode) -> ParserFn {
     let config_ref = config.clone();
     let is_valid_char: Rc<dyn Fn(char) -> bool> = Rc::new(move |c: char| {
         let code = c as u32;
@@ -219,17 +224,17 @@ pub fn parse_passage_line_break(state: &TokenizerState) -> Option<TokenizerActio
         })
 }
 
-pub fn parse_page_break(state: &mut TokenizerState) -> Option<TokenizerState> {
-    page_break(&state.remaining)
-        .ok()
-        .map(|(rest, repr)| {
-            let mut new_state = state.clone();
-            new_state.update_remaining(rest);
-            new_state.update_position(repr.len());
-            new_state.add_page_break(repr);
-            new_state
-        })
-}
+// pub fn parse_page_break(state: &mut TokenizerState) -> Option<TokenizerState> {
+//     page_break(&state.remaining)
+//         .ok()
+//         .map(|(rest, repr)| {
+//             let mut new_state = state.clone();
+//             new_state.update_remaining(rest);
+//             new_state.update_position(repr.len());
+//             new_state.add_page_break(repr);
+//             new_state
+//         })
+// }
 
 pub fn parse_spaces(state: &TokenizerState) -> Option<TokenizerAction> {
     spaces(&state.remaining)
@@ -279,10 +284,6 @@ pub fn create_bracketed_token(
     additional_len: usize
 ) -> Option<TokenizerAction> {
     if state.can_add_token() {
-        let mut new_state = state.clone();
-        new_state.add_word(word.to_string(), token_type.to_string());
-        new_state.update_remaining(rest);
-        new_state.update_position(word.len() + additional_len);
         Some(
             TokenizerAction::AddWord(
                 word.to_string(),

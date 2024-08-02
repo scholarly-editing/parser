@@ -1,6 +1,6 @@
 // make named tuples
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum Token {
     Word(String, String, usize, usize, usize, usize), // word, state, page number, line number, token order, position
@@ -10,7 +10,7 @@ pub enum Token {
     WordInBlock(String, String, usize, usize, usize, usize), // word, state, block name, page number, line number, token order
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TokenizerError {
     pub token: String,
     pub line: usize,
@@ -21,7 +21,7 @@ pub struct TokenizerError {
     pub message: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum TokenizerAction {
     AddPageBreak(String),
@@ -65,14 +65,14 @@ impl TokenizerAction {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct BlockState {
     name: String,
     token_order_in_line: usize,
     line_number: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TokenizerState {
     pub tokens: Vec<Token>,
     pub errors: Vec<TokenizerError>,

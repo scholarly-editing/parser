@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use crate::config::ParserConfig;
 
-use self::{ parsers::create_parsers, state::{ Mode, Token, TokenizerError, TokenizerState } };
+use self::{ parsers::create_parser, state::{ Mode, Token, TokenizerError, TokenizerState } };
 
 pub fn get_tokens(
     input: &str,
@@ -14,7 +14,7 @@ pub fn get_tokens(
     mode: Mode
 ) -> Result<Vec<Token>, Vec<TokenizerError>> {
     let mut state = TokenizerState::new(input);
-    let parser = create_parsers(Rc::new(config), &mode);
+    let parser = create_parser(Rc::new(config), &mode);
 
     while state.parsing_not_finished() {
         if let Some(action) = parser(&state) {
