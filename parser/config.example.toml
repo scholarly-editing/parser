@@ -1,0 +1,70 @@
+[page]
+marker = "fol\\.\\d+[rv]"
+
+[[block]]
+name = "illustration"
+has_text = false
+
+[[block]]
+name = "legend"
+has_text = true
+
+[[word]]
+label = "Arabic"
+char_range = [600, 0x60FF]
+additional_chars = []
+
+
+[[prefix]]
+symbol = "*"
+label = "emendation"
+
+[[prefix]]
+symbol = "?"
+label = "unintelligible"
+
+[[prefix]]
+symbol = "؟"
+label = "unintelligible"
+
+[[prefix]]
+symbol = "!"
+label = "error"
+
+[[prefix]]
+symbol = "†"
+label = "corrupt"
+
+[[brackets]]
+open = "("
+close = ")"
+label = "title"
+
+[[brackets]]
+open = "["
+close = "]"
+label = "superfluous"
+
+[[brackets]]
+open = "[["
+close = "]]"
+label = "cross-out"
+
+[[brackets]]
+open = "{"
+close = "}"
+label = "suppletion"
+
+[[brackets]]
+open = "<"
+close = ">"
+label = "added"
+
+[[sequence]]
+symbol = "***"
+label = "lacuna"
+
+
+[[sequence]]
+symbol = "..."
+label = "damage"
