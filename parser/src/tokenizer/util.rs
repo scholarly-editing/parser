@@ -4,7 +4,7 @@ use nom::{
     IResult,
 };
 
-pub type Chars = ((u32, u32), Vec<u32>);
+use crate::config::Chars;
 
 fn is_char_in_range(code: u32, range: &(u32, u32)) -> bool {
     code >= range.0 && code <= range.1

@@ -1,13 +1,22 @@
 [page]
-marker = "fol\\.\\d+[rv]"
+prefix = ["fol."]
+suffix = ["r", "v"]
 
 [[block]]
 name = "illustration"
-has_text = false
+type = "STANDALONE"
 
 [[block]]
 name = "legend"
 has_text = true
+type = "WITH_TEXT"
+end_marker = "---"
+
+[[block]]
+name = "margin"
+has_text = true
+type = "WITH_TEXT"
+end_marker = "---"
 
 [[word]]
 label = "Arabic"
@@ -39,26 +48,39 @@ label = "corrupt"
 open = "("
 close = ")"
 label = "title"
+open_label = "title_open"
+close_label = "title_close"
+
 
 [[brackets]]
 open = "["
 close = "]"
 label = "superfluous"
+skip = true
+open_label = "superfluous_open"
+close_label = "superfluous_close"
 
 [[brackets]]
 open = "[["
 close = "]]"
 label = "cross-out"
+skip = true
+open_label = "cross-out_open"
+close_label = "cross-out_close"
 
 [[brackets]]
 open = "{"
 close = "}"
 label = "suppletion"
+open_label = "suppletion_open"
+close_label = "suppletion_close"
 
 [[brackets]]
 open = "<"
 close = ">"
 label = "added"
+open_label = "added_open"
+close_label = "added_close"
 
 [[sequence]]
 symbol = "***"

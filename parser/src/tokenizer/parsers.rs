@@ -1,15 +1,24 @@
-use std::marker::PhantomData;
-
 use nom::{
     bytes::complete::{ tag, take_while1 },
     character::complete::space1,
     sequence::terminated,
 };
 
-use crate::config::ParserConfig;
+use crate::config::{ Chars, ParserConfig, WordConfig };
 
 use super::{
-    state::{ Mode, Token, TokenizerAction, TokenizerState },
+    state::{
+        LineBreakPayload,
+        Mode,
+        PassageLineBreakPayload,
+        SpacePayload,
+        TagPayload,
+        Token,
+        TokenizerAction,
+        TokenizerState,
+        WordPayload,
+        WordToken,
+    },
     util::{
         enclosed_word_parser,
         is_valid_char,
@@ -19,18 +28,28 @@ use super::{
         spaces,
         suffixed_word_parser,
         word_parser,
-        Chars,
     },
 };
 
 pub type ParserFn<'a> = Box<dyn (Fn(&TokenizerState<'a>) -> Option<TokenizerAction<'a>>) + 'a>;
 
-fn word_parser_fn<'a>(state: &TokenizerState<'a>, chars: &Chars) -> Option<TokenizerAction<'a>> {
-    word_parser(state.remaining, chars)
+fn word_parser_fn<'a>(
+    state: &TokenizerState<'a>,
+    word_def: &'a WordConfig
+) -> Option<TokenizerAction<'a>> {
+    word_parser(state.remaining, &word_def.chars)
         .ok()
         .and_then(|(rest, word)| {
             if state.can_add_token() {
-                Some(TokenizerAction::AddWord(word, "sound", rest, word.len()))
+                Some(
+                    TokenizerAction::AddWord(WordPayload {
+                        word,
+                        word_state: "sound",
+                        word_type: &word_def.label,
+                        rest,
+                        position: word.len(),
+                    })
+                )
             } else {
                 None
             }
@@ -39,15 +58,23 @@ fn word_parser_fn<'a>(state: &TokenizerState<'a>, chars: &Chars) -> Option<Token
 
 fn prefixed_word_parser_fn<'a>(
     state: &TokenizerState<'a>,
-    chars: &Chars,
+    word_def: &'a WordConfig,
     prefix: &'a str,
     label: &'a str
 ) -> Option<TokenizerAction<'a>> {
-    prefixed_word_parser(state.remaining, prefix, chars)
+    prefixed_word_parser(state.remaining, prefix, &word_def.chars)
         .ok()
         .and_then(|(rest, word)| {
             if state.can_add_token() {
-                Some(TokenizerAction::AddWord(word, label, rest, word.len() + prefix.len()))
+                Some(
+                    TokenizerAction::AddWord(WordPayload {
+                        word,
+                        word_state: label,
+                        word_type: &word_def.label,
+                        rest,
+                        position: word.len() + prefix.len(),
+                    })
+                )
             } else {
                 None
             }
@@ -56,38 +83,52 @@ fn prefixed_word_parser_fn<'a>(
 
 fn run_bracketed_words_parser<'a>(
     state: &TokenizerState<'a>,
-    chars: &Chars,
+    word_def: &'a WordConfig,
     open: &'a str,
     close: &'a str,
     label: &'a str,
     open_label: &'a str,
     close_label: &'a str
 ) -> Option<TokenizerAction<'a>> {
-    prefixed_word_parser(state.remaining, open, chars)
+    prefixed_word_parser(state.remaining, open, &word_def.chars)
         .ok()
         .and_then(|(rest, word)| {
-            if bracket_is_closed(rest, close, chars) {
-                create_bracketed_token(state, word, open_label, rest, open.len())
+            if bracket_is_closed(rest, close, &word_def.chars) {
+                create_bracketed_token(state, word, &word_def.label, open_label, rest, open.len())
             } else {
                 None
             }
         })
         .or_else(|| {
-            suffixed_word_parser(state.remaining, close, chars)
+            suffixed_word_parser(state.remaining, close, &word_def.chars)
                 .ok()
                 .and_then(|(rest, word)| {
                     if bracket_was_open(state, label) {
-                        create_bracketed_token(state, word, close_label, rest, close.len())
+                        create_bracketed_token(
+                            state,
+                            word,
+                            &word_def.label,
+                            close_label,
+                            rest,
+                            close.len()
+                        )
                     } else {
                         None
                     }
                 })
         })
         .or_else(|| {
-            enclosed_word_parser(state.remaining, open, close, chars)
+            enclosed_word_parser(state.remaining, open, close, &word_def.chars)
                 .ok()
                 .and_then(|(rest, word)|
-                    create_bracketed_token(state, word, label, rest, open.len() + close.len())
+                    create_bracketed_token(
+                        state,
+                        word,
+                        &word_def.label,
+                        label,
+                        rest,
+                        open.len() + close.len()
+                    )
                 )
         })
 }
@@ -101,7 +142,14 @@ fn run_sequence_parser<'a>(
         .ok()
         .and_then(|(rest, _)| {
             if state.can_add_token() {
-                Some(TokenizerAction::AddTag(seq, seq_type, rest, seq.len()))
+                Some(
+                    TokenizerAction::AddTag(TagPayload {
+                        tag: seq,
+                        label: seq_type,
+                        rest,
+                        position: seq.len(),
+                    })
+                )
             } else {
                 None
             }
@@ -110,17 +158,11 @@ fn run_sequence_parser<'a>(
 pub struct Parser<'a> {
     config: &'a ParserConfig,
     mode: &'a Mode,
-    chars: Chars,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(config: &'a ParserConfig, mode: &'a Mode) -> Self {
-        let range = &config.main.char_range;
-        let first = *range.first().unwrap();
-        let last = *range.last().unwrap();
-        let chars = ((first, last), config.main.additional_chars.clone());
-
-        Parser { config, mode, chars }
+        Parser { config, mode }
     }
 
     pub fn run(&'a self, state: &TokenizerState<'a>) -> Option<TokenizerAction<'a>> {
@@ -137,14 +179,27 @@ impl<'a> Parser<'a> {
             .or_else(|| self.parse_prefixed_word(state))
             .or_else(|| self.parse_bracketed_words(state))
             .or_else(|| self.parse_sequence(state))
-            .or_else(|| word_parser_fn(state, &self.chars))
+            .or_else(|| self.parse_words(state))
+    }
+
+    fn parse_words(&'a self, state: &TokenizerState<'a>) -> Option<TokenizerAction<'a>> {
+        self.config.word.iter().find_map(|word_def| { word_parser_fn(state, &word_def) })
     }
 
     fn parse_prefixed_word(&'a self, state: &TokenizerState<'a>) -> Option<TokenizerAction<'a>> {
         self.config.prefix
             .iter()
             .find_map(|prefix_def| {
-                prefixed_word_parser_fn(state, &self.chars, &prefix_def.symbol, &prefix_def.label)
+                self.config.word
+                    .iter()
+                    .find_map(|word_def| {
+                        prefixed_word_parser_fn(
+                            state,
+                            &word_def,
+                            &prefix_def.symbol,
+                            &prefix_def.label
+                        )
+                    })
             })
     }
 
@@ -152,15 +207,19 @@ impl<'a> Parser<'a> {
         self.config.brackets
             .iter()
             .find_map(|bracket_def| {
-                run_bracketed_words_parser(
-                    state,
-                    &self.chars,
-                    &bracket_def.open,
-                    &bracket_def.close,
-                    &bracket_def.label,
-                    &bracket_def.open_label,
-                    &bracket_def.close_label
-                )
+                self.config.word
+                    .iter()
+                    .find_map(|word_def| {
+                        run_bracketed_words_parser(
+                            state,
+                            &word_def,
+                            &bracket_def.open,
+                            &bracket_def.close,
+                            &bracket_def.label,
+                            &bracket_def.open_label,
+                            &bracket_def.close_label
+                        )
+                    })
             })
     }
 
@@ -174,19 +233,26 @@ impl<'a> Parser<'a> {
 pub fn parse_line_break<'a>(state: &TokenizerState<'a>) -> Option<TokenizerAction<'a>> {
     line_break(state.remaining)
         .ok()
-        .map(|(rest, chars)| TokenizerAction::AddLineBreak(rest, chars.len()))
+        .map(|(rest, chars)|
+            TokenizerAction::AddLineBreak(LineBreakPayload { rest, position: chars.len() })
+        )
 }
 
 pub fn parse_passage_line_break<'a>(state: &TokenizerState<'a>) -> Option<TokenizerAction<'a>> {
     line_break(state.remaining)
         .ok()
-        .map(|(rest, chars)| TokenizerAction::AddPassageLineBreak(rest, chars.len()))
+        .map(|(rest, chars)|
+            TokenizerAction::AddPassageLineBreak(PassageLineBreakPayload {
+                rest,
+                position: chars.len(),
+            })
+        )
 }
 
 pub fn parse_spaces<'a>(state: &TokenizerState<'a>) -> Option<TokenizerAction<'a>> {
     spaces(state.remaining)
         .ok()
-        .map(|(rest, repr)| TokenizerAction::AddSpace(rest, repr.len()))
+        .map(|(rest, repr)| TokenizerAction::AddSpace(SpacePayload { rest, position: repr.len() }))
 }
 
 fn bracket_is_closed<'a>(input: &'a str, close: &str, chars: &Chars) -> bool {
@@ -207,7 +273,7 @@ fn bracket_was_open<'a>(state: &TokenizerState<'a>, bracket_type: &str) -> bool 
     let mut open_found = false;
     let openning_bracket_type = format!("{}_open", bracket_type);
     for token in state.tokens.iter().rev() {
-        if let Token::Word(_, token_type, _, _, _, _) = token {
+        if let Token::Word(WordToken { state: token_type, .. }) = token {
             if *token_type == openning_bracket_type {
                 open_found = true;
                 break;
@@ -223,12 +289,21 @@ fn bracket_was_open<'a>(state: &TokenizerState<'a>, bracket_type: &str) -> bool 
 pub fn create_bracketed_token<'a>(
     state: &TokenizerState<'a>,
     word: &'a str,
-    token_type: &'a str,
+    word_type: &'a str,
+    word_state: &'a str,
     rest: &'a str,
     additional_len: usize
 ) -> Option<TokenizerAction<'a>> {
     if state.can_add_token() {
-        Some(TokenizerAction::AddWord(word, token_type, rest, word.len() + additional_len))
+        Some(
+            TokenizerAction::AddWord(WordPayload {
+                word,
+                word_state,
+                word_type,
+                rest,
+                position: word.len() + additional_len,
+            })
+        )
     } else {
         None
     }

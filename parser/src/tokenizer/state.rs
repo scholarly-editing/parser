@@ -1,13 +1,58 @@
 // make named tuples
 
 #[derive(Debug, Clone)]
+pub struct WordToken<'a> {
+    pub word: &'a str,
+    pub state: &'a str,
+    pub word_type: &'a str,
+    pub page_number: usize,
+    pub line_number: usize,
+    pub token_order: usize,
+    pub position: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct TagToken<'a> {
+    pub tag: &'a str,
+    pub label: &'a str,
+    pub page_number: usize,
+    pub line_number: usize,
+    pub token_order: usize,
+    pub position: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct PageBreakToken<'a> {
+    pub page_representation: &'a str,
+    pub page_number: usize,
+    pub position: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct BlockToken<'a> {
+    pub block_name: &'a str,
+    pub page_number: usize,
+    pub position: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct WordInBlockToken<'a> {
+    pub word: &'a str,
+    pub state: &'a str,
+    pub block_name: &'a str,
+    pub page_number: usize,
+    pub line_number: usize,
+    pub token_order: usize,
+}
+
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum Token<'a> {
-    Word(&'a str, &'a str, usize, usize, usize, usize), // word, state, page number, line number, token order, position
-    Tag(&'a str, &'a str, usize, usize, usize, usize), // tag, label, page number, line number, token order, position
-    PageBreak(&'a str, usize, usize), // page represntation, page number, position
-    Block(&'a str, usize, usize), // block name, page number, position
-    WordInBlock(&'a str, &'a str, &'a str, usize, usize, usize), // word, state, block name, page number, line number, token order
+    Word(WordToken<'a>),
+    Tag(TagToken<'a>),
+    PageBreak(PageBreakToken<'a>),
+    Block(BlockToken<'a>),
+    WordInBlock(WordInBlockToken<'a>),
 }
 
 #[derive(Debug, Clone)]
@@ -22,41 +67,83 @@ pub struct TokenizerError<'a> {
 }
 
 #[derive(Debug)]
+pub struct PageBreakPayload<'a> {
+    pub rest: &'a str,
+}
+
+#[derive(Debug)]
+pub struct LineBreakPayload<'a> {
+    pub rest: &'a str,
+    pub position: usize,
+}
+
+#[derive(Debug)]
+pub struct PassageLineBreakPayload<'a> {
+    pub rest: &'a str,
+    pub position: usize,
+}
+
+#[derive(Debug)]
+pub struct SpacePayload<'a> {
+    pub rest: &'a str,
+    pub position: usize,
+}
+
+#[derive(Debug)]
+pub struct WordPayload<'a> {
+    pub word: &'a str,
+    pub word_state: &'a str,
+    pub word_type: &'a str,
+    pub rest: &'a str,
+    pub position: usize,
+}
+
+#[derive(Debug)]
+pub struct TagPayload<'a> {
+    pub tag: &'a str,
+    pub label: &'a str,
+    pub rest: &'a str,
+    pub position: usize,
+}
+
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum TokenizerAction<'a> {
-    AddPageBreak(&'a str),
-    AddLineBreak(&'a str, usize),
-    AddPassageLineBreak(&'a str, usize),
-    AddSpace(&'a str, usize),
-    AddWord(&'a str, &'a str, &'a str, usize),
-    AddTag(&'a str, &'a str, &'a str, usize),
+    AddPageBreak(PageBreakPayload<'a>),
+    AddLineBreak(LineBreakPayload<'a>),
+    AddPassageLineBreak(PassageLineBreakPayload<'a>),
+    AddSpace(SpacePayload<'a>),
+    AddWord(WordPayload<'a>),
+    AddTag(TagPayload<'a>),
 }
 
 impl<'a> TokenizerAction<'a> {
     pub fn apply(self, state: &mut TokenizerState<'a>) {
         match self {
             TokenizerAction::AddPageBreak(_) => unimplemented!(),
-            TokenizerAction::AddLineBreak(rest, position) => {
+            TokenizerAction::AddLineBreak(LineBreakPayload { rest, position }) => {
                 state.update_position(position);
                 state.add_line_break();
                 state.update_remaining(&rest);
             }
-            TokenizerAction::AddPassageLineBreak(rest, position) => {
+            TokenizerAction::AddPassageLineBreak(PassageLineBreakPayload { rest, position }) => {
                 state.update_position(position);
                 state.add_space();
                 state.update_remaining(&rest);
             }
-            TokenizerAction::AddSpace(rest, position) => {
+            TokenizerAction::AddSpace(SpacePayload { rest, position }) => {
                 state.update_position(position);
                 state.add_space();
                 state.update_remaining(&rest);
             }
-            TokenizerAction::AddWord(word, word_state, rest, position) => {
+            TokenizerAction::AddWord(
+                WordPayload { word, word_state, word_type, rest, position },
+            ) => {
                 state.update_position(position);
-                state.add_word(word, word_state);
+                state.add_word(word, word_state, word_type);
                 state.update_remaining(&rest);
             }
-            TokenizerAction::AddTag(tag, label, rest, position) => {
+            TokenizerAction::AddTag(TagPayload { tag, label, rest, position }) => {
                 state.update_position(position);
                 state.add_tag(tag, label);
                 state.update_remaining(&rest);
@@ -115,7 +202,13 @@ impl<'a> TokenizerState<'a> {
         self.token_order_in_line = 0;
         self.line_number = 0;
         self.current_page_repr = repr;
-        self.tokens.push(Token::PageBreak(repr, self.page_number, self.curr_position));
+        self.tokens.push(
+            Token::PageBreak(PageBreakToken {
+                page_representation: repr,
+                page_number: self.page_number,
+                position: self.curr_position,
+            })
+        );
         self.last_is_space = true;
     }
 
@@ -129,16 +222,17 @@ impl<'a> TokenizerState<'a> {
         self.last_is_space = true;
     }
 
-    pub fn add_word(&mut self, word: &'a str, word_state: &'a str) {
+    pub fn add_word(&mut self, word: &'a str, word_state: &'a str, word_type: &'a str) {
         self.tokens.push(
-            Token::Word(
+            Token::Word(WordToken {
                 word,
-                word_state,
-                self.page_number,
-                self.line_number,
-                self.token_order_in_line,
-                self.curr_position
-            )
+                state: word_state,
+                word_type,
+                page_number: self.page_number,
+                line_number: self.line_number,
+                token_order: self.token_order_in_line,
+                position: self.curr_position,
+            })
         );
         self.last_is_space = false;
         self.token_order_in_line += 1;
@@ -146,14 +240,14 @@ impl<'a> TokenizerState<'a> {
 
     pub fn add_tag(&mut self, tag: &'a str, label: &'a str) {
         self.tokens.push(
-            Token::Tag(
+            Token::Tag(TagToken {
                 tag,
                 label,
-                self.page_number,
-                self.line_number,
-                self.token_order_in_line,
-                self.curr_position
-            )
+                page_number: self.page_number,
+                line_number: self.line_number,
+                token_order: self.token_order_in_line,
+                position: self.curr_position,
+            })
         );
         self.last_is_space = false;
     }

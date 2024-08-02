@@ -1,167 +1,150 @@
-use std::{ error::Error, fs::File, io::Read };
+pub mod deserializer;
 
-use serde::Deserialize;
-#[derive(Deserialize)]
 pub struct ParserConfig {
-    pub main: MainConfig,
+    pub page: PageConfig,
+    pub block: Vec<BlockConfig>,
+    pub word: Vec<WordConfig>,
     pub prefix: Vec<PrefixConfig>,
     pub brackets: Vec<BracketsConfig>,
     pub sequence: Vec<SequenceConfig>,
 }
 
-#[derive(Deserialize)]
-pub struct MainConfig {
-    pub _language: String,
-    pub char_range: Vec<u32>,
-    pub additional_chars: Vec<u32>,
-    pub _page_marker_pattern: String,
+pub struct PageConfig {
+    pub prefix: Vec<String>,
+    pub suffix: Vec<String>,
 }
 
-#[derive(Deserialize)]
+pub enum BlockType {
+    Standalone,
+    WithText,
+}
+
+pub struct BlockConfig {
+    pub name: String,
+    pub has_text: Option<bool>,
+    pub block_type: BlockType,
+    pub end_marker: Option<String>,
+}
+
+pub type Chars = ((u32, u32), Vec<u32>);
+
+pub struct WordConfig {
+    pub label: String,
+    pub chars: Chars,
+}
+
 pub struct PrefixConfig {
     pub symbol: String,
     pub label: String,
 }
 
-#[derive(Deserialize)]
 pub struct BracketsConfig {
     pub open: String,
     pub close: String,
     pub label: String,
     pub open_label: String,
     pub close_label: String,
+    pub skip: Option<bool>,
 }
 
-#[derive(Deserialize)]
 pub struct SequenceConfig {
     pub symbol: String,
     pub label: String,
 }
 
-impl ParserConfig {
-    pub fn from_file(path: &str) -> Result<Self, Box<dyn Error>> {
-        let mut file = File::open(path)?;
-        let mut contents = String::new();
-        file.read_to_string(&mut contents)?;
-        Self::from_str(&contents)
-    }
-
-    pub fn from_str(contents: &str) -> Result<Self, Box<dyn Error>> {
-        let config: ParserConfig = toml::from_str(contents)?;
-        Ok(config)
+impl From<deserializer::ParserConfigDeserializer> for ParserConfig {
+    fn from(deserializer: deserializer::ParserConfigDeserializer) -> Self {
+        Self {
+            page: PageConfig {
+                prefix: deserializer.page.prefix,
+                suffix: deserializer.page.suffix,
+            },
+            block: deserializer.block
+                .into_iter()
+                .map(|b| b.into())
+                .collect(),
+            word: deserializer.word
+                .into_iter()
+                .map(|w| w.into())
+                .collect(),
+            prefix: deserializer.prefix
+                .into_iter()
+                .map(|p| p.into())
+                .collect(),
+            brackets: deserializer.brackets
+                .into_iter()
+                .map(|b| b.into())
+                .collect(),
+            sequence: deserializer.sequence
+                .into_iter()
+                .map(|s| s.into())
+                .collect(),
+        }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::error::Error;
+impl From<deserializer::PageConfigDeserializer> for PageConfig {
+    fn from(deserializer: deserializer::PageConfigDeserializer) -> Self {
+        Self {
+            prefix: deserializer.prefix,
+            suffix: deserializer.suffix,
+        }
+    }
+}
 
-    #[test]
-    fn test_from_file() -> Result<(), Box<dyn Error>> {
-        let test_toml_content =
-            r#"
-            [main]
-            language = "Arabic"
-            char_range = [600, 0x60FF]
-            additional_chars = []
-            page_marker_pattern = 'fol\.\d+[rv]'
+impl From<deserializer::BlockConfigDeserializer> for BlockConfig {
+    fn from(deserializer: deserializer::BlockConfigDeserializer) -> Self {
+        Self {
+            name: deserializer.name,
+            has_text: deserializer.has_text,
+            block_type: match deserializer.block_type {
+                deserializer::BlockTypeDeserializer::Standalone => BlockType::Standalone,
+                deserializer::BlockTypeDeserializer::WithText => BlockType::WithText,
+            },
+            end_marker: deserializer.end_marker,
+        }
+    }
+}
 
-            [[prefix]]
-            symbol = "*"
-            label = "emendation"
+impl From<deserializer::WordConfigDeserializer> for WordConfig {
+    fn from(deserializer: deserializer::WordConfigDeserializer) -> Self {
+        let range = &deserializer.char_range;
+        let first = *range.first().unwrap();
+        let last = *range.last().unwrap();
+        Self {
+            label: deserializer.label,
+            chars: ((first, last), deserializer.additional_chars),
+        }
+    }
+}
 
-            [[prefix]]
-            symbol = "?"
-            label = "unintelligible"
+impl From<deserializer::PrefixConfigDeserializer> for PrefixConfig {
+    fn from(deserializer: deserializer::PrefixConfigDeserializer) -> Self {
+        Self {
+            symbol: deserializer.symbol,
+            label: deserializer.label,
+        }
+    }
+}
 
-            [[prefix]]
-            symbol = "؟"
-            label = "unintelligible"
+impl From<deserializer::BracketsConfigDeserializer> for BracketsConfig {
+    fn from(deserializer: deserializer::BracketsConfigDeserializer) -> Self {
+        Self {
+            open: deserializer.open,
+            close: deserializer.close,
+            open_label: format!("{}_open", &deserializer.label),
+            close_label: format!("{}_close", &deserializer.label),
+            label: deserializer.label,
+            skip: deserializer.skip,
+        }
+    }
+}
 
-            [[prefix]]
-            symbol = "!"
-            label = "error"
-
-            [[prefix]]
-            symbol = "†"
-            label = "corrupt"
-
-            [[brackets]]
-            open = "("
-            close = ")"
-            label = "title"
-
-            [[brackets]]
-            open = "["
-            close = "]"
-            label = "superfluous"
-
-            [[brackets]]
-            open = "[["
-            close = "]]"
-            label = "cross-out"
-
-            [[brackets]]
-            open = "{"
-            close = "}"
-            label = "suppletion"
-
-            [[brackets]]
-            open = "<"
-            close = ">"
-            label = "added"
-
-            [[sequence]]
-            symbol = "***"
-            label = "lacuna"
-
-
-            [[sequence]]
-            symbol = "..."
-            label = "damage"
-
-        "#;
-
-        let config = ParserConfig::from_str(test_toml_content)?;
-
-        assert_eq!(config.main._language, "Arabic");
-        assert_eq!(config.main.char_range, vec![600, 0x60ff]);
-        assert_eq!(config.main.additional_chars, Vec::<u32>::new());
-        assert_eq!(config.main._page_marker_pattern, "fol\\.\\d+[rv]");
-        assert_eq!(config.prefix.len(), 5);
-        assert_eq!(config.prefix[0].symbol, "*");
-        assert_eq!(config.prefix[0].label, "emendation");
-        assert_eq!(config.prefix[1].symbol, "?");
-        assert_eq!(config.prefix[1].label, "unintelligible");
-        assert_eq!(config.prefix[2].symbol, "؟");
-        assert_eq!(config.prefix[2].label, "unintelligible");
-        assert_eq!(config.prefix[3].symbol, "!");
-        assert_eq!(config.prefix[3].label, "error");
-        assert_eq!(config.prefix[4].symbol, "†");
-        assert_eq!(config.prefix[4].label, "corrupt");
-        assert_eq!(config.brackets.len(), 5);
-        assert_eq!(config.brackets[0].open, "(");
-        assert_eq!(config.brackets[0].close, ")");
-        assert_eq!(config.brackets[0].label, "title");
-        assert_eq!(config.brackets[1].open, "[");
-        assert_eq!(config.brackets[1].close, "]");
-        assert_eq!(config.brackets[1].label, "superfluous");
-        assert_eq!(config.brackets[2].open, "[[");
-        assert_eq!(config.brackets[2].close, "]]");
-        assert_eq!(config.brackets[2].label, "cross-out");
-        assert_eq!(config.brackets[3].open, "{");
-        assert_eq!(config.brackets[3].close, "}");
-        assert_eq!(config.brackets[3].label, "suppletion");
-        assert_eq!(config.brackets[4].open, "<");
-        assert_eq!(config.brackets[4].close, ">");
-        assert_eq!(config.brackets[4].label, "added");
-        assert_eq!(config.sequence.len(), 2);
-        assert_eq!(config.sequence[0].symbol, "***");
-        assert_eq!(config.sequence[0].label, "lacuna");
-        assert_eq!(config.sequence[1].symbol, "...");
-        assert_eq!(config.sequence[1].label, "damage");
-
-        Ok(())
+impl From<deserializer::SequenceConfigDeserializer> for SequenceConfig {
+    fn from(deserializer: deserializer::SequenceConfigDeserializer) -> Self {
+        Self {
+            symbol: deserializer.symbol,
+            label: deserializer.label,
+        }
     }
 }
