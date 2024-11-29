@@ -1,19 +1,23 @@
-[page]
-prefix = ["fol."]
-suffix = ["r", "v"]
+[[page]]
+prefix = "fol."
+suffix = "r"
+
+[[page]]
+prefix = "fol."
+suffix = "v"
 
 [[block]]
-name = "illustration"
+start_marker = "[illustration]"
 type = "STANDALONE"
 
 [[block]]
-name = "legend"
+start_marker = "[legend]"
 has_text = true
 type = "WITH_TEXT"
 end_marker = "---"
 
 [[block]]
-name = "margin"
+start_marker = "[margin]"
 has_text = true
 type = "WITH_TEXT"
 end_marker = "---"
@@ -22,7 +26,11 @@ end_marker = "---"
 label = "Arabic"
 char_range = [600, 0x60FF]
 additional_chars = []
+default_state = "sound"
 
+[[suffix]]
+symbol = "~"
+label = "middle-arabic"
 
 [[prefix]]
 symbol = "*"
@@ -48,8 +56,6 @@ label = "corrupt"
 open = "("
 close = ")"
 label = "title"
-open_label = "title_open"
-close_label = "title_close"
 
 
 [[brackets]]
@@ -57,36 +63,32 @@ open = "["
 close = "]"
 label = "superfluous"
 skip = true
-open_label = "superfluous_open"
-close_label = "superfluous_close"
 
 [[brackets]]
+precedence = 0
 open = "[["
 close = "]]"
 label = "cross-out"
 skip = true
-open_label = "cross-out_open"
-close_label = "cross-out_close"
+
 
 [[brackets]]
 open = "{"
 close = "}"
 label = "suppletion"
-open_label = "suppletion_open"
-close_label = "suppletion_close"
+
 
 [[brackets]]
 open = "<"
 close = ">"
 label = "added"
-open_label = "added_open"
-close_label = "added_close"
 
-[[sequence]]
+
+[[tag]]
 symbol = "***"
 label = "lacuna"
 
 
-[[sequence]]
+[[tag]]
 symbol = "..."
 label = "damage"

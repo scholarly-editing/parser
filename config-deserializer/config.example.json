@@ -1,0 +1,100 @@
+{
+  "page": [
+    {
+      "prefix": "fol.",
+      "suffix": "r"
+    },
+    {
+      "prefix": "fol.",
+      "suffix": "v"
+    }
+  ],
+  "block": [
+    {
+      "start_marker": "[illustration]",
+      "type": "STANDALONE"
+    },
+    {
+      "start_marker": "[legend]",
+      "has_text": true,
+      "type": "WITH_TEXT",
+      "end_marker": "---"
+    },
+    {
+      "start_marker": "[margin]",
+      "has_text": true,
+      "type": "WITH_TEXT",
+      "end_marker": "---"
+    }
+  ],
+  "word": [
+    {
+      "label": "Arabic",
+      "char_range": [600, 24831],
+      "additional_chars": [],
+      "default_state": "sound"
+    }
+  ],
+  "prefix": [
+    {
+      "symbol": "*",
+      "label": "emendation"
+    },
+    {
+      "symbol": "?",
+      "label": "unintelligible"
+    },
+    {
+      "symbol": "؟",
+      "label": "unintelligible"
+    },
+    {
+      "symbol": "!",
+      "label": "error"
+    },
+    {
+      "symbol": "†",
+      "label": "corrupt"
+    }
+  ],
+  "brackets": [
+    {
+      "open": "(",
+      "close": ")",
+      "label": "title"
+    },
+    {
+      "open": "[",
+      "close": "]",
+      "label": "superfluous",
+      "skip": true
+    },
+    {
+      "precedence": 0,
+      "open": "[[",
+      "close": "]]",
+      "label": "cross-out",
+      "skip": true
+    },
+    {
+      "open": "{",
+      "close": "}",
+      "label": "suppletion"
+    },
+    {
+      "open": "<",
+      "close": ">",
+      "label": "added"
+    }
+  ],
+  "tag": [
+    {
+      "symbol": "***",
+      "label": "lacuna"
+    },
+    {
+      "symbol": "...",
+      "label": "damage"
+    }
+  ]
+}
