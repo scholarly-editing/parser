@@ -1,19 +1,36 @@
-[page]
-marker = "fol\\.\\d+[rv]"
+[[page]]
+prefix = "fol."
+suffix = "r"
+
+[[page]]
+prefix = "fol."
+suffix = "v"
 
 [[block]]
-name = "illustration"
-has_text = false
+start_marker = "[illustration]"
+type = "STANDALONE"
 
 [[block]]
-name = "legend"
+start_marker = "[legend]"
 has_text = true
+type = "WITH_TEXT"
+end_marker = "---"
+
+[[block]]
+start_marker = "[margin]"
+has_text = true
+type = "WITH_TEXT"
+end_marker = "---"
 
 [[word]]
 label = "Arabic"
 char_range = [600, 0x60FF]
 additional_chars = []
+default_state = "sound"
 
+[[suffix]]
+symbol = "~"
+label = "middle-arabic"
 
 [[prefix]]
 symbol = "*"
@@ -40,31 +57,38 @@ open = "("
 close = ")"
 label = "title"
 
+
 [[brackets]]
 open = "["
 close = "]"
 label = "superfluous"
+skip = true
 
 [[brackets]]
+precedence = 0
 open = "[["
 close = "]]"
 label = "cross-out"
+skip = true
+
 
 [[brackets]]
 open = "{"
 close = "}"
 label = "suppletion"
 
+
 [[brackets]]
 open = "<"
 close = ">"
 label = "added"
 
-[[sequence]]
+
+[[tag]]
 symbol = "***"
 label = "lacuna"
 
 
-[[sequence]]
+[[tag]]
 symbol = "..."
 label = "damage"

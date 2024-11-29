@@ -1,0 +1,22 @@
+{
+  "name": "wasm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build:parser-web": "cd parser-wasm && wasm-pack build --out-name index --target bundler --release && cd ..",
+    "build:parser-node": "cd parser-wasm && wasm-pack build --out-name index --target nodejs --release && cd ..",
+    "test": "vitest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "jsdom": "^24.1.0",
+    "typescript": "^5.5.2",
+    "vite-plugin-top-level-await": "^1.4.1",
+    "vite-plugin-wasm": "^3.3.0",
+    "vitest": "^1.6.0"
+  }
+}
