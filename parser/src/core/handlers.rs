@@ -1,40 +1,42 @@
+use spaces::create_add_passage_line_break_update;
+
 use crate::config::{
-    BracketsConfig,
-    PageConfig,
-    PrefixConfig,
-    SuffixConfig,
-    TagConfig,
-    WordConfig,
+    BracketsConfig, PageConfig, PrefixConfig, SuffixConfig, TagConfig, WordConfig,
 };
 
 use super::updates::TokenizerUpdate;
 
 use self::{
     bracketed::create_bracketed_text_updates,
-    page_breaks::{ create_add_default_page_break_update, create_add_page_break_update_from_config },
+    page_breaks::{create_add_default_page_break_update, create_add_page_break_update_from_config},
     prefix::create_add_prefixed_word_update,
-    spaces::{ create_add_line_break_update, create_add_space_update },
+    spaces::{create_add_line_break_update, create_add_space_update},
     suffix::create_add_suffixed_word_update,
     tags::create_add_tag_update,
     words::create_add_word_update,
 };
 
-pub mod words;
-pub mod tags;
-pub mod spaces;
-pub mod page_breaks;
 pub mod bracketed;
+pub mod page_breaks;
 pub mod prefix;
+pub mod spaces;
 pub mod suffix;
+pub mod tags;
+pub mod words;
 
 #[derive(Clone)]
 pub enum Handler<'a> {
     Space,
     LineBreak,
+    PassgeLineBreak,
     PageBreak(&'a Option<Vec<PageConfig>>),
     PrefixedWord(&'a PrefixConfig, &'a WordConfig),
     SuffixedWord(&'a SuffixConfig, &'a WordConfig),
-    Bracketed(&'a BracketsConfig, Vec<&'a BracketsConfig>, HandlerSequence<'a>),
+    Bracketed(
+        &'a BracketsConfig,
+        Vec<&'a BracketsConfig>,
+        HandlerSequence<'a>,
+    ),
     Tag(&'a TagConfig),
     Word(&'a WordConfig),
 }
@@ -47,6 +49,7 @@ impl<'a> Handler<'a> {
         match self {
             Handler::Space => create_add_space_update(input),
             Handler::LineBreak => create_add_line_break_update(input),
+            Handler::PassgeLineBreak => create_add_passage_line_break_update(input),
             Handler::PageBreak(page_config) => {
                 if let Some(page_config) = page_config {
                     create_add_page_break_update_from_config(input, page_config)
