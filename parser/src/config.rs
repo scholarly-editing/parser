@@ -331,7 +331,10 @@ impl WordConfigBuilder {
     pub fn build(self) -> WordConfig {
         WordConfig {
             label: self.label,
-            chars: ((self.char_range[0], self.char_range[1]), self.additional_chars),
+            chars: (
+                (self.char_range[0], self.char_range[1]),
+                self.additional_chars,
+            ),
             default_state: self.default_state,
             precedence: self.precedence,
         }

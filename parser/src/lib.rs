@@ -1,6 +1,7 @@
 pub mod config;
 pub mod core;
 pub mod document;
+pub mod passage_state;
 pub mod util;
 
 // todo: error codes?

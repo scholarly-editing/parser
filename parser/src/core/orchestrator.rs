@@ -1,17 +1,12 @@
 use std::collections::VecDeque;
 
 use crate::config::{
-    BracketsConfig,
-    ParserConfig,
-    PrefixConfig,
-    SuffixConfig,
-    TagConfig,
-    WordConfig,
+    BracketsConfig, ParserConfig, PrefixConfig, SuffixConfig, TagConfig, WordConfig,
 };
 
 use super::{
-    handlers::{ Handler, HandlerSequence },
-    state::{ Mode, Token },
+    handlers::{Handler, HandlerSequence},
+    state::{Mode, Token},
     update_manager::TokenizerUpdateManager,
 };
 
@@ -28,9 +23,8 @@ impl<'a> Orchestrator<'a> {
         let suffixed_word_handlers = build_suffixed_word_handlers(&config.suffix, &config.word);
         let tag_handlers = build_tag_handlers(&config.tags);
 
-        let mut bracketed_text_handlers = VecDeque::from(
-            vec![space_handler.clone(), line_break_handler.clone()]
-        );
+        let mut bracketed_text_handlers =
+            VecDeque::from(vec![space_handler.clone(), line_break_handler.clone()]);
 
         bracketed_text_handlers.extend(word_handlers.iter().cloned());
         bracketed_text_handlers.extend(prefixed_word_handlers.iter().cloned());
@@ -46,7 +40,7 @@ impl<'a> Orchestrator<'a> {
 
                 let text_with_brackets_handlers = build_bracketed_handlers(
                     &config.brackets,
-                    HandlerSequence(bracketed_text_handlers.into_iter().collect())
+                    HandlerSequence(bracketed_text_handlers.into_iter().collect()),
                 );
                 handlers.push(page_break_handler);
                 handlers.push(line_break_handler);
@@ -62,25 +56,40 @@ impl<'a> Orchestrator<'a> {
                 }
             }
             Mode::SinglePage => {
-                {
-                    let text_with_brackets_handlers = build_bracketed_handlers(
-                        &config.brackets,
-                        HandlerSequence(bracketed_text_handlers.into_iter().collect())
-                    );
-                    handlers.push(line_break_handler);
-                    handlers.push(space_handler);
-                    handlers.extend(text_with_brackets_handlers);
-                    handlers.extend(tag_handlers);
-                    handlers.extend(prefixed_word_handlers);
-                    handlers.extend(suffixed_word_handlers);
-                    handlers.extend(word_handlers);
+                let text_with_brackets_handlers = build_bracketed_handlers(
+                    &config.brackets,
+                    HandlerSequence(bracketed_text_handlers.into_iter().collect()),
+                );
+                handlers.push(line_break_handler);
+                handlers.push(space_handler);
+                handlers.extend(text_with_brackets_handlers);
+                handlers.extend(tag_handlers);
+                handlers.extend(prefixed_word_handlers);
+                handlers.extend(suffixed_word_handlers);
+                handlers.extend(word_handlers);
 
-                    Self {
-                        handlers: HandlerSequence(handlers),
-                    }
+                Self {
+                    handlers: HandlerSequence(handlers),
                 }
             }
-            Mode::Passage => { unimplemented!() }
+            Mode::Passage => {
+                let text_with_brackets_handlers = build_bracketed_handlers(
+                    &config.brackets,
+                    HandlerSequence(bracketed_text_handlers.into_iter().collect()),
+                );
+                let passage_line_break_handler = Handler::PassgeLineBreak;
+                handlers.push(passage_line_break_handler);
+                handlers.push(space_handler);
+                handlers.extend(text_with_brackets_handlers);
+                handlers.extend(tag_handlers);
+                handlers.extend(prefixed_word_handlers);
+                handlers.extend(suffixed_word_handlers);
+                handlers.extend(word_handlers);
+
+                Self {
+                    handlers: HandlerSequence(handlers),
+                }
+            }
         }
     }
 
@@ -113,7 +122,7 @@ fn build_word_handlers<'a>(config: &'a Vec<WordConfig>) -> Vec<Handler<'a>> {
 
 fn build_prefixed_word_handlers<'a>(
     config: &'a Vec<PrefixConfig>,
-    words: &'a Vec<WordConfig>
+    words: &'a Vec<WordConfig>,
 ) -> Vec<Handler<'a>> {
     let mut handlers = vec![];
     let mut config: Vec<_> = config.iter().collect();
@@ -129,7 +138,7 @@ fn build_prefixed_word_handlers<'a>(
 
 fn build_suffixed_word_handlers<'a>(
     config: &'a Vec<SuffixConfig>,
-    words: &'a Vec<WordConfig>
+    words: &'a Vec<WordConfig>,
 ) -> Vec<Handler<'a>> {
     let mut handlers = vec![];
     let mut config: Vec<_> = config.iter().collect();
@@ -156,17 +165,14 @@ fn build_tag_handlers<'a>(config: &'a Vec<TagConfig>) -> Vec<Handler<'a>> {
 
 fn build_bracketed_handlers<'a>(
     config: &'a Vec<BracketsConfig>,
-    content_expression_set: HandlerSequence<'a>
+    content_expression_set: HandlerSequence<'a>,
 ) -> Vec<Handler<'a>> {
     let mut expressions = vec![];
     let mut config: Vec<_> = config.iter().collect();
     config.sort_by_key(|w| w.precedence);
     for bracket in config.iter() {
-        let bracket_expression = Handler::Bracketed(
-            bracket,
-            config.clone(),
-            content_expression_set.clone()
-        );
+        let bracket_expression =
+            Handler::Bracketed(bracket, config.clone(), content_expression_set.clone());
         expressions.push(bracket_expression);
     }
     expressions
