@@ -28,7 +28,7 @@ pub mod words;
 pub enum Handler<'a> {
     Space,
     LineBreak,
-    PassgeLineBreak,
+    PassageLineBreak,
     PageBreak(&'a Option<Vec<PageConfig>>),
     PrefixedWord(&'a PrefixConfig, &'a WordConfig),
     SuffixedWord(&'a SuffixConfig, &'a WordConfig),
@@ -49,7 +49,7 @@ impl<'a> Handler<'a> {
         match self {
             Handler::Space => create_add_space_update(input),
             Handler::LineBreak => create_add_line_break_update(input),
-            Handler::PassgeLineBreak => create_add_passage_line_break_update(input),
+            Handler::PassageLineBreak => create_add_passage_line_break_update(input),
             Handler::PageBreak(page_config) => {
                 if let Some(page_config) = page_config {
                     create_add_page_break_update_from_config(input, page_config)

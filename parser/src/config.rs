@@ -511,18 +511,18 @@ impl Default for BracketsConfigBuilder {
 }
 
 impl TagConfig {
-    pub fn builder() -> SequenceConfigBuilder {
-        SequenceConfigBuilder::default()
+    pub fn builder() -> TagConfigBuilder {
+        TagConfigBuilder::default()
     }
 }
 
-pub struct SequenceConfigBuilder {
+pub struct TagConfigBuilder {
     symbol: String,
     label: String,
     precedence: usize,
 }
 
-impl SequenceConfigBuilder {
+impl TagConfigBuilder {
     pub fn new() -> Self {
         Self {
             symbol: String::new(),
@@ -555,7 +555,7 @@ impl SequenceConfigBuilder {
     }
 }
 
-impl Default for SequenceConfigBuilder {
+impl Default for TagConfigBuilder {
     fn default() -> Self {
         Self::new()
     }

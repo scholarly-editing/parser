@@ -2,7 +2,7 @@ use crate::{
     config::BracketsConfig,
     core::{
         handlers::HandlerSequence,
-        parsers::{ bracketed_text_parser, empty_beackets_error_parser },
+        parsers::{ bracketed_text_parser, empty_brackets_error_parser },
         updates::{
             ErrorPayload,
             LineBreakPayload,
@@ -22,7 +22,7 @@ pub fn create_bracketed_text_updates<'a>(
     all_bracket_defs: &'a Vec<&'a BracketsConfig>,
     content_expression: &'a HandlerSequence<'a>
 ) -> Option<Vec<TokenizerUpdate<'a>>> {
-    let empty_brackets_error = empty_beackets_error_parser(
+    let empty_brackets_error = empty_brackets_error_parser(
         input,
         &brackets_def.open,
         &brackets_def.close
