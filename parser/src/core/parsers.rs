@@ -116,7 +116,7 @@ pub fn bracketed_text_parser<'a>(
     tuple((tag(open), take_until1(close), tag(close)))(input)
 }
 
-pub fn empty_beackets_error_parser<'a>(
+pub fn empty_brackets_error_parser<'a>(
     input: &'a str,
     open: &'a str,
     close: &'a str

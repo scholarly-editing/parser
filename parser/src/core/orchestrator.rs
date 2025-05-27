@@ -77,7 +77,7 @@ impl<'a> Orchestrator<'a> {
                     &config.brackets,
                     HandlerSequence(bracketed_text_handlers.into_iter().collect()),
                 );
-                let passage_line_break_handler = Handler::PassgeLineBreak;
+                let passage_line_break_handler = Handler::PassageLineBreak;
                 handlers.push(passage_line_break_handler);
                 handlers.push(space_handler);
                 handlers.extend(text_with_brackets_handlers);
