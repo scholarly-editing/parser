@@ -1,183 +1,179 @@
-# Project Guidelines
+# Scholarly Editing Parser - AI Agent Guidelines
 
-## Overview
+## Project Overview
 
-This is a **scholarly text parser** for medieval/classical manuscripts, primarily Arabic texts. It handles special editorial markup (page breaks, brackets, annotations, blocks) with configurable, precedence-based parsing. The workspace provides Rust core, CLI, Python (PyO3), and WASM bindings.
+Configurable lexical parser for scholarly critical editions, tokenizing Arabic manuscripts with editorial markup (cross-outs, emendations, marginal notes, lacunae). Zero-copy design using nom parser combinators.
 
 ## Architecture
 
-**Core flow:** `Config → Orchestrator → Handlers → Parsers → Updates → State`
+### Core Components (parser/ package - heart of the repo)
 
-### Key Components
+- **[parser/src/core/orchestrator.rs](parser/src/core/orchestrator.rs)** - Builds handler sequences based on mode/config
+- **[parser/src/core/state.rs](parser/src/core/state.rs)** - Token types and tokenizer state machine
+- **[parser/src/core/handlers.rs](parser/src/core/handlers.rs)** - Handler enum and dispatch logic  
+- **[parser/src/core/update_manager.rs](parser/src/core/update_manager.rs)** - Applies state transitions during parsing
+- **[parser/src/core/updates.rs](parser/src/core/updates.rs)** - Update payload types
+- **[parser/src/core/parsers.rs](parser/src/core/parsers.rs)** - Low-level nom-based parser functions
+- **[parser/src/core/handlers/](parser/src/core/handlers/)** - Individual handler implementations (blocks, bracketed, tags, words, etc.)
 
-- **[parser/src/core/orchestrator.rs](../parser/src/core/orchestrator.rs)**: Central coordinator, builds handler sequences, manages `HandlerContext`
-- **[parser/src/core/handlers.rs](../parser/src/core/handlers.rs)**: Strategy pattern enum (`Word`, `Tag`, `PrefixedWord`, `Bracketed`, `PageBreak`, etc.) - each handler module in [handlers/](../parser/src/core/handlers/)
-- **[parser/src/core/parsers.rs](../parser/src/core/parsers.rs)**: Pure `nom` combinator functions returning `IResult<&str, T>`
-- **[parser/src/core/updates.rs](../parser/src/core/updates.rs)**: `TokenizerUpdate` enum with payload structs for state mutations
-- **[parser/src/core/update_manager.rs](../parser/src/core/update_manager.rs)**: Applies updates to state, tracks position/line/block context
-- **[parser/src/core/state.rs](../parser/src/core/state.rs)**: `TokenizerState` holds tokens, errors, remaining input, block state
-- **[parser/src/core/errors.rs](../parser/src/core/errors.rs)**: `TextError` enum - errors become tokens, parsing continues
+### Data Flow Pattern
 
-### Cross-Language Bindings
+```
+Input → Orchestrator (builds handler sequence) → Handlers (check patterns, emit updates) → UpdateManager (applies updates to state) → Tokens + Errors
+```
 
-- **Python** ([Python/py-parser/src/lib.rs](../python/py-parser/src/lib.rs)): Thin `#[pyclass]` wrapper around `PassageState`, accepts TOML config strings
-- **WASM** ([WASM/parser-wasm/src/lib.rs](../wasm/parser-wasm/src/lib.rs)): Uses Unicode NFC normalization on input, returns `JsValue` via `serde-wasm-bindgen`
+### Key Abstractions
+
+- **Token enum**: PageBreak, Word, WordInBlock, Tag, Block, Error - all include position metadata
+- **Mode enum**: SinglePage, MultiplePages, Passage (affects parsing behavior)
+- **Handler pattern**: Check if input matches → return `Option<Vec<TokenizerUpdate>>` → UpdateManager applies changes
+- **ParserConfig**: Builder-based config system defining word chars, prefixes, brackets, tags, blocks, page breaks
 
 ## Code Style
 
-Follow strict Rust conventions per [CONTRIBUTING.md](../CONTRIBUTING.md):
+### Naming Conventions
+- **Types**: PascalCase (`WordToken`, `ParserConfig`)
+- **Functions**: snake_case (`create_add_word_update`, `tokenize`)
+- **Handlers**: `create_add_xxx_update` pattern for handler functions
+- **Configs**: Builder pattern (`WordConfig::builder()`)
 
-- **Types/Enums**: `PascalCase` (`ParserConfig`, `Handler`, `TokenizerUpdate`)
-- **Functions/Variables**: `snake_case` (`create_add_word_update`, `is_valid_char`)
-- **Constants**: `SCREAMING_SNAKE_CASE` (`DEFAULT_PRECEDENCE`)
-- **Builders**: Use pattern `{ConfigName}Builder` (e.g., `TagConfigBuilder`)
-- **Lifetimes**: Pervasive `<'a>` for zero-copy parsing - tokens hold `&'a str` slices
+### Lifetime Management
+- Extensive use of `'a` lifetime for zero-copy parsing - tokens borrow from input string
+- Pattern: `pub fn tokenize<'a>(input: &'a str) -> (Vec<Token<'a>>, Vec<usize>)`
 
-### Critical Patterns
+### Organization
+- One file per handler type in [parser/src/core/handlers/](parser/src/core/handlers/)
+- Separation: parsers (nom combinators) → handlers (business logic) → update_manager (state changes)
+- Public API minimal - [parser/src/lib.rs](parser/src/lib.rs) exports only essential modules
 
-**Builder pattern (required for all configs):**
+## Error Handling
+
+### Pattern: Permissive Parsing
+- Errors become `Token::Error` entries, parsing continues
+- Error indices returned separately: `(tokens, error_indices)`
+- All errors have full position metadata (page, line, span)
+
+### Error Detection Order Matters
+Check error conditions BEFORE valid patterns. Example from [words.rs](parser/src/core/handlers/words.rs):
+1. Check infixed errors (invalid chars mid-word)
+2. Check prefixed errors (unwanted chars before word)
+3. Check suffixed errors (unwanted chars after word)  
+4. Finally check valid word patterns
+
+### Error Types
+See [parser/src/core/errors.rs](parser/src/core/errors.rs) for exhaustive list: `WordPrefixedWithUnwantedChars`, `EmptyBrackets`, `BlockStartInBrackets`, `InvalidPageBreak`, etc.
+
+## Testing
+
+### Test Organization
+- **[tests/integration_tests.rs](parser/tests/integration_tests.rs)** - Comprehensive feature tests by category
+- **[tests/kitchen_sink_test.rs](parser/tests/kitchen_sink_test.rs)** - All features combined
+- **[tests/error_kitchen_sink_test.rs](parser/tests/error_kitchen_sink_test.rs)** - All error cases
+
+### Standard Test Pattern
 ```rust
-let config = ParserConfig::builder()
-    .add_word(WordConfig { /* ... */ })
-    .add_prefix(PrefixConfig { /* ... */ })
-    .build()
-    .unwrap();
-```
-
-**Handler creation pattern:**
-```rust
-pub fn create_add_X_update<'a>(
-    input: &'a str,
-    config: &'a Config
-) -> Option<Vec<TokenizerUpdate<'a>>> {
-    parser(input, config).ok().map(|(rest, data)| {
-        vec![TokenizerUpdate::AddX(XPayload {
-            rest: Some(rest),
-            len: data.chars().count(),
-            // ... semantic fields
-        })]
-    })
+#[test]
+fn test_feature() {
+    let config = WordConfig::builder().chars(((0x0600, 0x06FF), vec![])).build();
+    let orchestrator = Orchestrator::new(&config, &Mode::SinglePage);
+    let (tokens, errors) = orchestrator.tokenize("input text");
+    
+    assert_eq!(count_errors(&errors), 0);
+    let words = extract_words(&tokens);
+    assert_eq!(words[0], "expected");
 }
 ```
 
-**Zero-copy principle**: Never clone strings. Use `&'a str` slices. Only allocate for error messages (via `Box::leak` for static lifetime).
+Helper functions: `extract_words()`, `count_errors()`, `assert_has_error()`
 
-**Precedence sorting**: All configs have `precedence: usize`. Lower number = higher priority (checked first). Handlers sorted once during orchestrator construction.
+### Unit Tests
+Each handler has inline `#[cfg(test)]` tests - see [words.rs](parser/src/core/handlers/words.rs), [prefix.rs](parser/src/core/handlers/prefix.rs)
+
+## Adding New Handlers
+
+7-step process:
+
+1. **Config** ([config.rs](parser/src/config.rs)): Add config type with builder, include `precedence: usize`
+2. **Parser** ([parsers.rs](parser/src/core/parsers.rs)): Create nom parser function  
+3. **Update Payload** ([updates.rs](parser/src/core/updates.rs)): Define payload struct, add variant to `TokenizerUpdate` enum
+4. **Handler** ([handlers/](parser/src/core/handlers/)): Create `create_add_xxx_update()` function in new file
+5. **Register** ([handlers.rs](parser/src/core/handlers.rs)): Add variant to `Handler` enum, implement in `process_with_context()`
+6. **Build** ([orchestrator.rs](parser/src/core/orchestrator.rs)): Add builder function, include in handler sequence
+7. **Apply** ([update_manager.rs](parser/src/core/update_manager.rs)): Handle update in `apply()`, implement state changes
+
+See "How to Add New Handlers" section in research notes for detailed example.
+
+## Project Conventions
+
+### Precedence System
+- All configs have `precedence: usize` field  
+- `DEFAULT_PRECEDENCE = usize::MAX` (lowest priority)
+- Lower numbers = higher priority
+- Handlers automatically sorted by precedence in orchestrator
+
+### Char Range Config
+```rust
+pub type Chars = ((u32, u32), Vec<u32>);  // (unicode_range, additional_chars)
+// Example: ((0x600, 0x6FF), vec![0x003A])  // Arabic block + colon
+```
+
+### Block Behavior
+- Blocks MUST start at line beginning - enforced via `HandlerContext::is_at_line_start`
+- `WITH_TEXT` blocks parse content; `STANDALONE` blocks ignored
+- End markers tracked in state: `current_block_end_marker`
+
+### Bracket Skip Flag
+Brackets with `skip: Some(true)` are excluded from word extraction (e.g., cross-outs, deletions)
+
+### Context-Aware Parsing
+```rust
+pub struct HandlerContext {
+    pub is_at_line_start: bool,
+    pub is_in_block: bool,
+    pub current_block_end_marker: Option<String>,
+}
+```
+Handlers receive context to make state-dependent decisions - see [handlers.rs](parser/src/core/handlers.rs)
 
 ## Build and Test
 
 ```bash
-# Build workspace
-cargo build --release
-
-# Run binaries
-cargo run --bin single_run
-cargo run --bin experiments
-
-# Test core parser
+# Build and test parser package
+cargo build -p parser
 cargo test -p parser
 
-# Test specific suite
-cargo test --test integration_tests
-cargo test --test kitchen_sink_test
+# Run specific tests
+cargo test integration_tests
+cargo test test_kitchen_sink
 
-# Format and lint
-cargo fmt
-cargo clippy
+# Full workspace build
+cargo build --workspace
+cargo test --workspace
+
+# Interface packages
+cargo build -p parser-wasm     # WASM bindings
+cargo build -p py-parser       # Python bindings (PyO3)
+cargo build -p cli             # CLI tools
+cargo build -p config-deserializer  # Config loading
+
+# WASM workflow
+cd wasm && pnpm install && pnpm build && pnpm test
+
+# Python bindings
+cd python/py-parser && maturin develop
 ```
-
-**Python bindings:**
-```bash
-cd python/py-parser
-maturin build --release --target x86_64-unknown-linux-gnu
-```
-
-**WASM testing:**
-```bash
-cd wasm
-pnpm install
-pnpm test  # vitest
-```
-
-### Test Pattern
-
-See [parser/tests/integration_tests.rs](../parser/tests/integration_tests.rs):
-```rust
-fn create_test_config() -> ParserConfig {
-    ParserConfig::builder().add_word(/* ... */).build().unwrap()
-}
-
-#[test]
-fn test_feature() {
-    let parser = Orchestrator::new(&config, &Mode::SinglePage);
-    let (tokens, errors) = parser.tokenize(input);
-    assert_eq!(errors.len(), 0);
-    assert!(matches!(tokens[0], Token::Word(_)));
-}
-```
-
-## Project Conventions
-
-### Error Recovery Architecture
-Errors **do not stop parsing**. Invalid text becomes `Token::Error(TokenizerError)` with span info. The `errors: Vec<usize>` field tracks error token indices. This design enables batch validation.
-
-### Context-Sensitive Parsing
-Handlers receive `HandlerContext` with:
-- `is_at_line_start: bool` - affects bracket/block parsing rules
-- `current_block: Option<BlockState>` - enables nested block validation
-
-See [parser/src/core/orchestrator.rs](../parser/src/core/orchestrator.rs#L15-L30) for context management.
-
-### Handler Modules Organization
-Each handler type lives in `parser/src/core/handlers/{name}.rs`. When adding handlers:
-1. Create module in `handlers/` directory
-2. Define update payload in [updates.rs](../parser/src/core/updates.rs)
-3. Add variant to `Handler` enum in [handlers.rs](../parser/src/core/handlers.rs)
-4. Add parser function to [parsers.rs](../parser/src/core/parsers.rs)
-5. Implement `process_with_context()` for strategy pattern
-
-### Unicode Handling
-- Parser supports **Arabic** (U+0600 to U+06FF) via `is_valid_char()` in [parsers.rs](../parser/src/core/parsers.rs)
-- WASM bindings **normalize input** (NFC) - Python bindings currently do not
-- Use Unicode-aware `chars().count()` for `len` fields, not `.len()`
-
-### Configuration Layer
-Config deserialization is separate crate ([config-deserializer/](../config-deserializer/)). Supports TOML/JSON/YAML via `ParserConfigDeserializer`. See [config.example.toml](../config-deserializer/config.example.toml) for schema.
-
-### Precedence System
-When multiple handlers match same input, precedence determines order:
-- Lower number = higher priority
-- Default: `usize::MAX` (lowest priority)
-- Critical for overlapping patterns (e.g., prefixed words vs. plain words)
 
 ## Integration Points
 
-### Dependencies
-- **nom** (7.1.3): Parser combinators - all parsing functions use this
-- **serde**: Serialization for tokens, configs, errors
-- **pyo3** (0.23.4): Python bindings via maturin
-- **wasm-bindgen**: JavaScript interop for WASM target
+- **CLI** ([cli/](cli/)): Binaries in `src/bin/` for single_run, slicing, stress_test
+- **WASM** ([wasm/parser-wasm/](wasm/parser-wasm/)): wasm-bindgen exports for JavaScript
+- **Python** ([python/py-parser/](python/py-parser/)): PyO3 bindings - see `lib.rs` for Python class definitions
+- **Config** ([config-deserializer/](config-deserializer/)): Loads TOML/JSON/YAML/XML configs
 
-### Workspace Structure
-```
-parser/              # Core library (no_std compatible)
-cli/                 # Command-line tools
-config-deserializer/ # Config parsing (TOML/JSON/YAML)
-Python/py-parser/    # PyO3 bindings
-WASM/parser-wasm/    # wasm-bindgen target
-```
+All interface crates depend on core `parser` package - make breaking changes carefully.
 
-Use `path = "../parser"` dependencies for intra-workspace references.
+## Security Notes
 
-## Security
-
-### Input Validation
-- Character validation via `is_valid_char()` restricts to defined Unicode ranges
-- Config builders return `Result` - validate before use
-- Page break parsing checks format patterns (e.g., "fol.2r") - see [page_breaks.rs](../parser/src/core/handlers/page_breaks.rs)
-
-### Memory Safety
-Zero-copy design means tokens borrow input lifetime `<'a>`. Invalid lifetimes cause compile errors. Never use `unsafe` to extend lifetimes.
-
-### Error Leak Pattern
-Error messages use `Box::leak()` to create `&'static str` from owned strings. This is intentional - errors are rare and memory is negligible. See [errors.rs](../parser/src/core/errors.rs).
+- **Memory leak intentional**: [errors.rs](parser/src/core/errors.rs) uses `Box::leak()` for error message lifetime extension
+- **No unsafe code** except in FFI boundaries (PyO3, wasm-bindgen)
+- Input validation happens via parser - malformed input produces Error tokens, never panics

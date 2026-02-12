@@ -3,6 +3,8 @@ name = "parser-wasm"
 version = "0.1.0"
 authors = ["mahmoudkozae <mahmoud.kozae@fu-berlin.de>"]
 edition = "2018"
+license = "GPL-3.0-or-later"
+license-file = "../../LICENSE"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
