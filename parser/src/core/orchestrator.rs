@@ -6,7 +6,7 @@ use crate::config::{
 
 use super::{
     handlers::{Handler, HandlerContext, HandlerSequence},
-    state::{Mode, Token},
+    state::{Mode, Token, TokenizerState},
     update_manager::TokenizerUpdateManager,
 };
 
@@ -109,6 +109,11 @@ impl<'a> Orchestrator<'a> {
     }
 
     pub fn tokenize(&'a self, input: &'a str) -> (Vec<Token<'a>>, Vec<usize>) {
+        let state = self.tokenize_into_state(input);
+        (state.tokens, state.errors)
+    }
+
+    pub fn tokenize_into_state(&'a self, input: &'a str) -> TokenizerState<'a> {
         let mut state_manager = TokenizerUpdateManager::init(input);
 
         while state_manager.state.parsing_not_finished() {
@@ -172,7 +177,7 @@ impl<'a> Orchestrator<'a> {
                 state_manager.handle_unknown_error();
             }
         }
-        (state_manager.state.tokens, state_manager.state.errors)
+        state_manager.state
     }
 }
 
