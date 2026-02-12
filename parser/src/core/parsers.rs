@@ -1,4 +1,5 @@
 use nom::{
+    branch::alt,
     bytes::complete::{ is_not, tag, take_until, take_until1, take_while1 },
     character::complete::{ digit1, line_ending, multispace0, multispace1, space0, space1 },
     sequence::{ pair, preceded, terminated, tuple },
@@ -130,4 +131,30 @@ pub fn closing_bracket_without_opening_tag_parser<'a>(
     close: &'a str
 ) -> IResult<&'a str, (&'a str, &'a str, &'a str)> {
     tuple((multispace1, is_not(open), take_until(close)))(input)
+}
+
+/// Parse a block start marker like "[illustration]" or "[legend]"
+pub fn parse_block_start_marker<'a>(
+    input: &'a str,
+    marker: &'a str
+) -> IResult<&'a str, &'a str> {
+    tag(marker)(input)
+}
+
+/// Parse a block end marker like "---"
+/// The end marker should be followed by a line ending or end of input
+pub fn parse_block_end_marker<'a>(
+    input: &'a str,
+    marker: &'a str
+) -> IResult<&'a str, &'a str> {
+    terminated(tag(marker), alt((line_ending, eof)))(input)
+}
+
+/// Check if we're at end of input
+fn eof(input: &str) -> IResult<&str, &str> {
+    if input.is_empty() {
+        Ok((input, ""))
+    } else {
+        Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Eof)))
+    }
 }

@@ -1,9 +1,9 @@
 [workspace]
 
 members = [
-    "WASM/parser-wasm",
+    "wasm/parser-wasm",
     "cli",
     "config-deserializer",
     "parser",
-    "Python/py-parser",
+    "python/py-parser",
 ]

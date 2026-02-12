@@ -1,17 +1,19 @@
 use std::collections::VecDeque;
 
 use crate::config::{
-    BracketsConfig, ParserConfig, PrefixConfig, SuffixConfig, TagConfig, WordConfig,
+    BlockConfig, BracketsConfig, ParserConfig, PrefixConfig, SuffixConfig, TagConfig, WordConfig,
 };
 
 use super::{
-    handlers::{Handler, HandlerSequence},
+    handlers::{Handler, HandlerContext, HandlerSequence},
     state::{Mode, Token},
     update_manager::TokenizerUpdateManager,
 };
 
 pub struct Orchestrator<'a> {
     handlers: HandlerSequence<'a>,
+    block_handlers: Vec<Handler<'a>>,
+    block_end_markers: Vec<&'a str>,
 }
 
 impl<'a> Orchestrator<'a> {
@@ -22,6 +24,8 @@ impl<'a> Orchestrator<'a> {
         let prefixed_word_handlers = build_prefixed_word_handlers(&config.prefix, &config.word);
         let suffixed_word_handlers = build_suffixed_word_handlers(&config.suffix, &config.word);
         let tag_handlers = build_tag_handlers(&config.tags);
+        let block_handlers = build_block_handlers(&config.block);
+        let block_end_markers = collect_block_end_markers(&config.block);
 
         let mut bracketed_text_handlers =
             VecDeque::from(vec![space_handler.clone(), line_break_handler.clone()]);
@@ -30,6 +34,11 @@ impl<'a> Orchestrator<'a> {
         bracketed_text_handlers.extend(prefixed_word_handlers.iter().cloned());
         bracketed_text_handlers.extend(suffixed_word_handlers.iter().cloned());
         bracketed_text_handlers.extend(tag_handlers.iter().cloned());
+        bracketed_text_handlers.extend(block_handlers.iter().cloned());
+
+        for marker in &block_end_markers {
+            bracketed_text_handlers.push_back(Handler::BlockEnd(marker));
+        }
 
         let mut handlers = vec![];
 
@@ -53,6 +62,8 @@ impl<'a> Orchestrator<'a> {
 
                 Self {
                     handlers: HandlerSequence(handlers),
+                    block_handlers,
+                    block_end_markers,
                 }
             }
             Mode::SinglePage => {
@@ -70,6 +81,8 @@ impl<'a> Orchestrator<'a> {
 
                 Self {
                     handlers: HandlerSequence(handlers),
+                    block_handlers,
+                    block_end_markers,
                 }
             }
             Mode::Passage => {
@@ -88,6 +101,8 @@ impl<'a> Orchestrator<'a> {
 
                 Self {
                     handlers: HandlerSequence(handlers),
+                    block_handlers,
+                    block_end_markers,
                 }
             }
         }
@@ -95,8 +110,61 @@ impl<'a> Orchestrator<'a> {
 
     pub fn tokenize(&'a self, input: &'a str) -> (Vec<Token<'a>>, Vec<usize>) {
         let mut state_manager = TokenizerUpdateManager::init(input);
+
         while state_manager.state.parsing_not_finished() {
-            if let Some(actions) = self.handlers.process_first(&state_manager.state.remaining) {
+            let ctx = HandlerContext {
+                is_at_line_start: state_manager.is_at_line_start,
+                is_in_block: state_manager.is_in_block(),
+                current_block_end_marker: state_manager.get_current_block_end_marker().map(|s| s.to_string()),
+            };
+
+            // First check for block end marker if we're in a block
+            if state_manager.is_at_line_start {
+                if let Some(end_marker) = &ctx.current_block_end_marker {
+                    // Find if the end marker exists in our stored markers
+                    let mut matched_actions = None;
+
+                    for &stored_marker in &self.block_end_markers {
+                        if stored_marker == end_marker {
+                            let end_handler = Handler::BlockEnd(stored_marker);
+                            if let Some(actions) = end_handler.process_with_context(&state_manager.state.remaining, &ctx) {
+                                matched_actions = Some(actions);
+                                break;
+                            }
+                        }
+                    }
+
+                    if let Some(actions) = matched_actions {
+                        for action in actions {
+                            state_manager.apply(action);
+                        }
+                        // If we applied block end, continue to next iteration
+                        if !state_manager.is_in_block() {
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            // Then check for block start markers (only at line start and not in block)
+            if state_manager.is_at_line_start && !state_manager.is_in_block() {
+                let mut found_block = false;
+                for block_handler in &self.block_handlers {
+                    if let Some(actions) = block_handler.process_with_context(&state_manager.state.remaining, &ctx) {
+                        for action in actions {
+                            state_manager.apply(action);
+                        }
+                        found_block = true;
+                        break;
+                    }
+                }
+                if found_block {
+                    continue;
+                }
+            }
+
+            // Regular handler processing
+            if let Some(actions) = self.handlers.process_first_with_context(&state_manager.state.remaining, &ctx) {
                 for action in actions {
                     state_manager.apply(action);
                 }
@@ -176,4 +244,21 @@ fn build_bracketed_handlers<'a>(
         expressions.push(bracket_expression);
     }
     expressions
+}
+
+fn build_block_handlers<'a>(config: &'a Vec<BlockConfig>) -> Vec<Handler<'a>> {
+    let mut handlers = vec![];
+    let mut config: Vec<_> = config.iter().collect();
+    config.sort_by_key(|b| b.precedence);
+    for block in config {
+        handlers.push(Handler::Block(block));
+    }
+    handlers
+}
+
+fn collect_block_end_markers<'a>(config: &'a Vec<BlockConfig>) -> Vec<&'a str> {
+    config
+        .iter()
+        .filter_map(|b| b.end_marker.as_deref())
+        .collect()
 }

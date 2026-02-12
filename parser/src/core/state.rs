@@ -1,3 +1,4 @@
+use super::errors::TextError;
 use serde::{ Deserialize, Serialize };
 
 pub enum Mode {
@@ -65,7 +66,7 @@ pub struct TokenizerError<'a> {
     pub order_in_line: usize,
     pub page_repr: &'a str,
     pub span: (usize, usize),
-    pub message: &'a str,
+    pub error: TextError,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -81,9 +82,10 @@ pub enum Token<'a> {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BlockState<'a> {
-    name: &'a str,
-    token_order_in_line: usize,
-    line_number: usize,
+    pub name: &'a str,
+    pub end_marker: Option<&'a str>,
+    pub token_order_in_line: usize,
+    pub line_number: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
