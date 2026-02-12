@@ -191,8 +191,8 @@ impl From<BlockConfigDeserializer> for BlockConfig {
             start_marker: deserializer.start_marker,
             has_text: deserializer.has_text.unwrap_or(false),
             block_type: match deserializer.block_type {
-                BlockTypeStandalone => BlockType::Standalone,
-                BlockTypeWithText => BlockType::WithText,
+                BlockTypeDeserializer::Standalone => BlockType::Standalone,
+                BlockTypeDeserializer::WithText => BlockType::WithText,
             },
             is_inline: deserializer.is_inline.unwrap_or(false),
             end_marker: deserializer.end_marker,
@@ -371,20 +371,20 @@ label = "damage"
         assert_eq!(config.page.as_ref().unwrap()[0].suffix, "r".to_string());
         assert_eq!(config.page.as_ref().unwrap()[1].prefix, "fol.".to_string());
         assert_eq!(config.page.as_ref().unwrap()[1].suffix, "v".to_string());
-        // assert_eq!(config.block.len(), 3);
-        // assert_eq!(config.block[0].start_marker, "[illustration]");
-        // assert_eq!(config.block[0].block_type, BlockTypeDeserializer::Standalone);
-        // assert_eq!(config.block[1].start_marker, "[legend]");
-        // assert_eq!(config.block[1].has_text, Some(true));
-        // assert_eq!(config.block[1].block_type, BlockTypeDeserializer::WithText);
-        // assert_eq!(config.block[1].end_marker, Some("---".to_string()));
-        // assert_eq!(config.block[2].start_marker, "margin");
-        // assert_eq!(config.block[2].has_text, Some(true));
-        // assert_eq!(config.block[2].block_type, BlockTypeDeserializer::WithText);
-        // assert_eq!(config.block[2].end_marker, Some("---".to_string()));
+        assert_eq!(config.block.as_ref().unwrap().len(), 3);
+        assert_eq!(config.block.as_ref().unwrap()[0].start_marker, "[illustration]");
+        assert_eq!(config.block.as_ref().unwrap()[0].block_type, BlockTypeDeserializer::Standalone);
+        assert_eq!(config.block.as_ref().unwrap()[1].start_marker, "[legend]");
+        assert_eq!(config.block.as_ref().unwrap()[1].has_text, Some(true));
+        assert_eq!(config.block.as_ref().unwrap()[1].block_type, BlockTypeDeserializer::WithText);
+        assert_eq!(config.block.as_ref().unwrap()[1].end_marker, Some("---".to_string()));
+        assert_eq!(config.block.as_ref().unwrap()[2].start_marker, "margin");
+        assert_eq!(config.block.as_ref().unwrap()[2].has_text, Some(true));
+        assert_eq!(config.block.as_ref().unwrap()[2].block_type, BlockTypeDeserializer::WithText);
+        assert_eq!(config.block.as_ref().unwrap()[2].end_marker, Some("---".to_string()));
         assert_eq!(config.word.len(), 1);
         assert_eq!(config.word[0].label, "Arabic");
-        assert_eq!(config.word[0].char_range, vec![600, 0x60ff]);
+        assert_eq!(config.word[0].char_range, vec![600, 0x60ff]); // Note: this is the raw deserialized value
         assert_eq!(config.word[0].additional_chars, Vec::<u32>::new());
         assert_eq!(config.prefix.len(), 5);
         assert_eq!(config.prefix[0].symbol, "*");
@@ -397,9 +397,9 @@ label = "damage"
         assert_eq!(config.prefix[3].label, "error");
         assert_eq!(config.prefix[4].symbol, "†");
         assert_eq!(config.prefix[4].label, "corrupt");
-        // assert_eq!(config.suffix.len(), 1);
-        // assert_eq!(config.suffix[0].symbol, "~");
-        // assert_eq!(config.suffix[0].label, "middle-arabic");
+        assert_eq!(config.suffix.as_ref().unwrap().len(), 1);
+        assert_eq!(config.suffix.as_ref().unwrap()[0].symbol, "~");
+        assert_eq!(config.suffix.as_ref().unwrap()[0].label, "middle-arabic");
         assert_eq!(config.brackets.len(), 5);
         assert_eq!(config.brackets[0].open, "(");
         assert_eq!(config.brackets[0].close, ")");
@@ -425,5 +425,61 @@ label = "damage"
         assert_eq!(config.tag[1].label, "damage");
 
         Ok(())
+    }
+
+    #[test]
+    fn test_block_type_conversion_with_text() {
+        let deserializer = BlockConfigDeserializer {
+            start_marker: "[legend]".to_string(),
+            has_text: Some(true),
+            block_type: BlockTypeDeserializer::WithText,
+            end_marker: Some("---".to_string()),
+            is_inline: None,
+            precedence: None,
+        };
+        let config: BlockConfig = deserializer.into();
+        assert_eq!(config.block_type, BlockType::WithText);
+        assert_eq!(config.has_text, true);
+        assert_eq!(config.end_marker, Some("---".to_string()));
+    }
+
+    #[test]
+    fn test_block_type_conversion_standalone() {
+        let deserializer = BlockConfigDeserializer {
+            start_marker: "[illustration]".to_string(),
+            has_text: None,
+            block_type: BlockTypeDeserializer::Standalone,
+            end_marker: None,
+            is_inline: None,
+            precedence: None,
+        };
+        let config: BlockConfig = deserializer.into();
+        assert_eq!(config.block_type, BlockType::Standalone);
+        assert_eq!(config.has_text, false);
+    }
+
+    #[test]
+    fn test_word_char_range_hex_values() {
+        let toml = r#"
+[[word]]
+label = "Arabic"
+char_range = [0x0600, 0x06FF]
+additional_chars = []
+default_state = "sound"
+[[prefix]]
+symbol = "*"
+label = "emendation"
+[[brackets]]
+open = "("
+close = ")"
+label = "title"
+[[tag]]
+symbol = "***"
+label = "lacuna"
+        "#;
+        let config = ParserConfigDeserializer::from_toml_str(toml).unwrap();
+        assert_eq!(config.word[0].char_range, vec![0x0600, 0x06FF]);
+        let parsed: ParserConfig = config.into();
+        assert_eq!(parsed.word[0].chars.0, (0x0600, 0x06FF));
     }
 }

@@ -959,6 +959,24 @@ mod error_tokens {
     }
 
     #[test]
+    fn test_word_infixed_with_dagger_produces_error() {
+        let config = create_test_config();
+        let orchestrator = Orchestrator::new(&config, &Mode::SinglePage);
+
+        // Word with † (U+2020) in the middle - like فـ†برم
+        let input = "فـ†برم";
+        let (tokens, errors) = orchestrator.tokenize(input);
+
+        assert!(count_errors(&errors) > 0, "Expected error for word infixed with †");
+
+        let error_messages = extract_errors(&tokens);
+        assert!(
+            error_messages.iter().any(|m| m.contains("infixed")),
+            "Expected infixed error for فـ†برم"
+        );
+    }
+
+    #[test]
     fn test_word_suffixed_with_unwanted_chars() {
         let config = create_test_config();
         let orchestrator = Orchestrator::new(&config, &Mode::SinglePage);
@@ -1237,16 +1255,15 @@ mod block_parsing {
             })
             .collect();
 
-        if words_in_block.len() >= 2 {
-            // Words on different lines should have different line numbers
-            // Line 0: [legend]
-            // Line 1: سطر أول
-            // Line 2: سطر ثان
-            assert!(
-                words_in_block.iter().map(|w| w.line_number).collect::<std::collections::HashSet<_>>().len() > 1,
-                "Words on different lines should have different line numbers"
-            );
-        }
+        assert!(words_in_block.len() >= 4, "Expected at least 4 WordInBlock tokens");
+
+        // Block-relative line numbering: first content line = 0, second = 1
+        // Line 0 (block-relative): سطر أول
+        assert_eq!(words_in_block[0].line_number, 0, "First block line should be 0");
+        assert_eq!(words_in_block[1].line_number, 0, "Second word on first block line should be 0");
+        // Line 1 (block-relative): سطر ثان
+        assert_eq!(words_in_block[2].line_number, 1, "Second block line should be 1");
+        assert_eq!(words_in_block[3].line_number, 1, "Second word on second block line should be 1");
     }
 
     #[test]
@@ -1271,6 +1288,48 @@ mod block_parsing {
         // Word after should be regular
         let regular_words = extract_words(&tokens);
         assert!(regular_words.contains(&"كلمة"));
+    }
+
+    #[test]
+    fn test_word_after_block_resumes_global_line_numbering() {
+        let config = create_test_config();
+        let orchestrator = Orchestrator::new(&config, &Mode::SinglePage);
+
+        // Line 0: [legend]
+        // Line 1: نص
+        // Line 2: ---
+        // Line 3: كلمة
+        let input = "[legend]\nنص\n---\nكلمة";
+        let (tokens, _errors) = orchestrator.tokenize(input);
+
+        let regular_words: Vec<_> = tokens.iter()
+            .filter_map(|t| match t {
+                Token::Word(w) => Some(w),
+                _ => None,
+            })
+            .collect();
+
+        assert!(!regular_words.is_empty(), "Expected regular word after block");
+        let word_after_block = regular_words.iter().find(|w| w.word == "كلمة").unwrap();
+        assert_eq!(word_after_block.line_number, 3, "Word after block should have global line number");
+    }
+
+    #[test]
+    fn test_block_end_marker_not_an_error() {
+        let config = create_test_config();
+        let orchestrator = Orchestrator::new(&config, &Mode::SinglePage);
+
+        let input = "[legend]\nنص\n---\nكلمة";
+        let (tokens, errors) = orchestrator.tokenize(input);
+
+        // --- should NOT produce an error
+        let block_end_errors: Vec<_> = tokens.iter()
+            .filter(|t| match t {
+                Token::Error(e) => e.token == "---",
+                _ => false,
+            })
+            .collect();
+        assert!(block_end_errors.is_empty(), "Block end marker --- should not be an error");
     }
 }
 

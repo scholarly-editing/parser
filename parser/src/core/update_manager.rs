@@ -99,6 +99,9 @@ impl<'a> TokenizerUpdateManager<'a> {
                 self.end_current_block();
                 self.update_position(len);
                 self.update_remaining(rest);
+                // Block end marker consumes `---\n` (terminated with line_ending/eof),
+                // so we need to increment line_number for the consumed newline
+                self.state.line_number += 1;
                 self.is_at_line_start = true;
             }
         }
@@ -161,7 +164,7 @@ impl<'a> TokenizerUpdateManager<'a> {
                     word,
                     state: word_state,
                     block_name: block.name,
-                    line_number: self.state.line_number,
+                    line_number: self.state.line_number - block.line_number,
                     token_order: self.state.token_order_in_line,
                     span: (self.state.parsed_len, self.state.parsed_len + len),
                 })
@@ -213,7 +216,8 @@ impl<'a> TokenizerUpdateManager<'a> {
                 name: block_name,
                 end_marker,
                 token_order_in_line: self.state.token_order_in_line,
-                line_number: self.state.line_number,
+                // Store the next line number so block-internal lines start at 0
+                line_number: self.state.line_number + 1,
             });
         }
         // For standalone blocks, no state change needed

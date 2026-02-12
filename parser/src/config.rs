@@ -28,6 +28,7 @@ pub struct SuffixConfig {
     pub precedence: usize,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum BlockType {
     Standalone,
     WithText,
