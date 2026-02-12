@@ -46,17 +46,14 @@ pub fn create_block_start_update<'a>(
 }
 
 /// Check if we're at a block end marker
-/// End markers must be on their own line
+/// In the main tokenize loop, the orchestrator enforces line-start before calling this.
+/// Here we don't gate on is_line_start so that block end markers can be detected
+/// inside brackets for error reporting (same approach as create_block_start_update).
 pub fn create_block_end_update<'a>(
     input: &'a str,
     end_marker: &'a str,
-    is_line_start: bool,
+    _is_line_start: bool,
 ) -> Option<Vec<TokenizerUpdate<'a>>> {
-    // End markers must be at the start of a line
-    if !is_line_start {
-        return None;
-    }
-
     parse_block_end_marker(input, end_marker)
         .ok()
         .map(|(rest, marker)| {
@@ -171,10 +168,13 @@ mod tests {
     }
 
     #[test]
-    fn test_block_end_marker_not_at_line_start_returns_none() {
+    fn test_block_end_marker_not_at_line_start_still_matches() {
+        // Block end detection no longer gates on is_line_start —
+        // the orchestrator enforces line-start in its main loop instead.
+        // This allows block end markers to be detected inside brackets for error reporting.
         let result = create_block_end_update("---", "---", false);
 
-        assert!(result.is_none());
+        assert!(result.is_some());
     }
 
     #[test]

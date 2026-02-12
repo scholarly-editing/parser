@@ -12,7 +12,7 @@ name = "py_parser"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = "0.23.4"
+pyo3 = "0.28.0"
 parser = { path = "../../parser" }
 config-deserializer = { path = "../../config-deserializer" }
 regex-syntax = "0.8.4"

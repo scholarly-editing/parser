@@ -33,7 +33,7 @@ pub fn parse_page_break_from_config<'a>(
     prefix: &'a str,
     suffix: &'a str
 ) -> IResult<&'a str, (&'a str, ((&'a str, &'a str, &'a str), &'a str), &'a str)> {
-    tuple((space0, pair(tuple((tag(prefix), digit1, tag(suffix))), line_ending), space0))(input)
+    tuple((space0, pair(tuple((tag(prefix), digit1, tag(suffix))), alt((line_ending, eof))), space0))(input)
 }
 
 pub fn parse_tag<'a>(seq: &'a str) -> Box<dyn (Fn(&str) -> IResult<&str, &str>) + 'a> {
