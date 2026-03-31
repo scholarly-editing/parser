@@ -106,14 +106,43 @@ label = "damage"
 `
 
 describe('Parser Test', () => {
-
-
     beforeAll(async () => {
-        wasmModule = await import('../parser-wasm/pkg'); // Adjust the path as needed
+        wasmModule = await import('../parser-wasm/pkg');
     });
-    it('should load parse text', async () => {
+
+    it('should tokenize multi-line Arabic manuscript text', () => {
         const result = wasmModule.tokenize(input, config);
-        console.log(JSON.stringify(result, null, 2));
-        expect(result).not.toBeNull();
+
+        expect(result).toHaveProperty('tokens');
+        expect(result).toHaveProperty('errors');
+        expect(Array.isArray(result.tokens)).toBe(true);
+        expect(result.tokens.length).toBeGreaterThan(0);
+
+        // Verify word tokens are present
+        const words = result.tokens
+            .filter((t: any) => t.Word)
+            .map((t: any) => t.Word);
+        expect(words.length).toBeGreaterThan(10);
+
+        // First word should be "باب"
+        expect(words[0].word).toBe('باب');
+        expect(words[0].state).toBe('sound');
+
+        // Check emendation prefix (*لبيدبا)
+        const emendation = words.find((w: any) => w.word === 'لبيدبا');
+        expect(emendation).toBeDefined();
+        expect(emendation.state).toBe('emendation');
+
+        // Check lacuna tag (***)
+        const tagTokens = result.tokens
+            .filter((t: any) => t.Tag)
+            .map((t: any) => t.Tag);
+        expect(tagTokens.some((t: any) => t.label === 'lacuna')).toBe(true);
+
+        // Error indices should be valid
+        for (const idx of result.errors) {
+            expect(idx).toBeLessThan(result.tokens.length);
+            expect(result.tokens[idx]).toHaveProperty('Error');
+        }
     });
 });

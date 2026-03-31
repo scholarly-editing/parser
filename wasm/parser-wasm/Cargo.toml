@@ -2,7 +2,7 @@
 name = "parser-wasm"
 version = "0.1.0"
 authors = ["mahmoudkozae <mahmoud.kozae@fu-berlin.de>"]
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0-or-later"
 license-file = "../../LICENSE"
 
@@ -13,7 +13,7 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook"]
 
 [dependencies]
-wasm-bindgen = "0.2.84"
+wasm-bindgen = "0.2.116"
 serde-wasm-bindgen = "0.6.5"
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
@@ -22,11 +22,15 @@ serde-wasm-bindgen = "0.6.5"
 console_error_panic_hook = { version = "0.1.7", optional = true }
 parser = { path = "../../parser" }
 config-deserializer = { path = "../../config-deserializer" }
-serde = { version = "1.0.213", features = ["derive"] }
-unicode-normalization = "0.1.24"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+serde-xml-rs = "0.6"
+toml = "0.8"
+unicode-normalization = "0.1"
 
 [dev-dependencies]
-wasm-bindgen-test = "0.3.34"
+wasm-bindgen-test = "0.3.65"
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.
