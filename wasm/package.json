@@ -1,22 +1,52 @@
 {
-  "name": "wasm",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "build:parser-web": "cd parser-wasm && wasm-pack build --out-name index --target bundler --release && cd ..",
-    "build:parser-node": "cd parser-wasm && wasm-pack build --out-name index --target nodejs --release && cd ..",
-    "test": "vitest"
+  "name": "@scholarly-editing/parser",
+  "version": "0.1.0",
+  "description": "WebAssembly parser for scholarly editing texts and manuscripts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
   },
-  "keywords": [],
-  "author": "",
+  "sideEffects": [
+    "./dist/index.js",
+    "./dist/snippets/*"
+  ],
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "cd parser-wasm && wasm-pack build --out-dir ../dist --out-name index --target bundler --release && rm -f ../dist/.gitignore ../dist/package.json && cd ..",
+    "build:node": "cd parser-wasm && wasm-pack build --out-dir ../dist-node --out-name index --target nodejs --release && rm -f ../dist-node/.gitignore ../dist-node/package.json && cd ..",
+    "prepublishOnly": "pnpm run build",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "parser",
+    "scholarly-editing",
+    "manuscript",
+    "philology"
+  ],
+  "author": "mahmoudkozae <mahmoud.kozae@fu-berlin.de>",
   "license": "GPL-3.0-or-later",
   "devDependencies": {
     "@types/node": "^22",
     "typescript": "^5.8",
     "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.6.0",
-    "vitest": "^3.1.1"
+    "vitest": "^3.1.1",
+    "wasm-pack": "^0.15.1"
   },
   "packageManager": "pnpm@9.11.0+sha512.0a203ffaed5a3f63242cd064c8fb5892366c103e328079318f78062f24ea8c9d50bc6a47aa3567cabefd824d170e78fa2745ed1f16b132e16436146b7688f19b"
 }

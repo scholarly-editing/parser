@@ -90,7 +90,7 @@ function flatTokenCount(pages: Token[][]): number {
 // ═════════════════════════════════════════════════════════════════════════════
 
 beforeAll(async () => {
-  wasmModule = await import('../parser-wasm/pkg');
+  wasmModule = await import('../dist');
 });
 
 // ── Passage tests ───────────────────────────────────────────────────────────

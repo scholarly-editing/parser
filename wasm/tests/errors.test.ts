@@ -68,7 +68,7 @@ function errorTokensAt(tokens: Token[], indices: number[]): any[] {
 // ═════════════════════════════════════════════════════════════════════════════
 
 beforeAll(async () => {
-  wasmModule = await import('../parser-wasm/pkg');
+  wasmModule = await import('../dist');
 });
 
 // ── Parser error tokens ─────────────────────────────────────────────────────

@@ -1,0 +1,55 @@
+name: Publish WASM Package to npm
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'wasm/**'
+      - 'parser/**'
+      - 'config-deserializer/**'
+      - '.github/workflows/publish-npm.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build & Publish to npm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.11.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: 'wasm/pnpm-lock.yaml'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: pnpm --dir wasm install --frozen-lockfile
+
+      - name: Build WASM package
+        run: pnpm --dir wasm run build
+
+      - name: Run tests
+        run: pnpm --dir wasm test
+
+      - name: Publish to npm
+        run: pnpm --dir wasm publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

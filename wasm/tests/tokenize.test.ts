@@ -208,7 +208,7 @@ function errors(tokens: Token[]): any[] {
 // ═════════════════════════════════════════════════════════════════════════════
 
 beforeAll(async () => {
-  wasmModule = await import('../parser-wasm/pkg');
+  wasmModule = await import('../dist');
 });
 
 // ── Basic word tokenization ─────────────────────────────────────────────────

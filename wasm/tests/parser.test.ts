@@ -107,7 +107,7 @@ label = "damage"
 
 describe('Parser Test', () => {
     beforeAll(async () => {
-        wasmModule = await import('../parser-wasm/pkg');
+        wasmModule = await import('../dist');
     });
 
     it('should tokenize multi-line Arabic manuscript text', () => {

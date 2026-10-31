@@ -3,3 +3,6 @@ node_modules
 .idea
 .DS_Store
 _playground
+wasm/dist
+wasm/dist-node
+wasm/parser-wasm/pkg
