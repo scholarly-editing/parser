@@ -18,6 +18,9 @@ jobs:
   publish:
     name: Build & Publish to npm
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wasm
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -41,15 +44,15 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
-        run: pnpm --dir wasm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build WASM package
-        run: pnpm --dir wasm run build
+        run: pnpm run build
 
       - name: Run tests
-        run: pnpm --dir wasm test
+        run: pnpm test
 
       - name: Publish to npm
-        run: pnpm --dir wasm publish --access public --no-git-checks
+        run: pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
